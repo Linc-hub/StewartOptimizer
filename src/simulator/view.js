@@ -5,7 +5,7 @@ import { buildSceneGeometry, OVERLAY_NAMES, SCENE_COLORS } from './scene.js';
 import { displayText, markCommitted, syncInput } from './geometry-controls.js';
 import { REACHABILITY_SAMPLE_COUNTS } from './reachability.js';
 import { hasLoad } from './loads.js';
-import { resolveTranslationFrame, stepTranslation, translationFromFrame, translationInFrame } from './translation-frame.js';
+import { resolveInputFrame, stepRotation, stepTranslation, translationFromFrame, translationInFrame } from './input-frame.js';
 
 const RADIAN_AXES = new Set(['rx', 'ry', 'rz']);
 const TRANSLATION_AXES = Object.freeze(['x', 'y', 'z']);
@@ -61,8 +61,8 @@ export function createSimulatorView({ document, window, controller, isActive = (
   const pattern = document.getElementById('simPattern');
   const play = document.getElementById('simPlay');
   const pointerMode = document.getElementById('simPointerMode');
-  const translationFrame = document.getElementById('simTranslationFrame');
-  const frameOf = () => resolveTranslationFrame(translationFrame.value);
+  const inputFrame = document.getElementById('simInputFrame');
+  const frameOf = () => resolveInputFrame(inputFrame.value);
   for (const axis of TRANSLATION_AXES) {
     document.documentElement?.style?.setProperty?.(`--axis-${axis}`, axisCssColor(SCENE_COLORS[axis]));
   }
@@ -214,7 +214,7 @@ export function createSimulatorView({ document, window, controller, isActive = (
     });
   }
   // Switching frames only changes how the fields read the same pose.
-  translationFrame.addEventListener('change', () => syncPoseFields(controller.getState(), true));
+  inputFrame.addEventListener('change', () => syncPoseFields(controller.getState(), true));
   document.getElementById('simResetPose').addEventListener('click', guarded(() => controller.requestPose(HOME_POSE)));
   document.getElementById('simResetCamera').addEventListener('click', () => {
     camera = { yaw: 0.7, pitch: 0.38, distance: 600, target: centre ? centre.slice() : camera.target };
@@ -337,8 +337,8 @@ export function createSimulatorView({ document, window, controller, isActive = (
     if (!isActive() || /^(INPUT|TEXTAREA|SELECT)$/.test(event.target?.tagName || '')) return;
     const state = controller.getState();
     if (!state.layout) return;
-    const pose = { ...state.requested };
     const move = [0, 0, 0];
+    const turn = [0, 0, 0];
     const step = event.shiftKey ? 2 : 1;
     let handled = true;
     switch (event.key) {
@@ -348,16 +348,17 @@ export function createSimulatorView({ document, window, controller, isActive = (
       case 'ArrowDown': move[1] -= step; break;
       case 'PageUp': move[2] += step; break;
       case 'PageDown': move[2] -= step; break;
-      case 'q': case 'Q': pose.rz -= degToRad(step); break;
-      case 'e': case 'E': pose.rz += degToRad(step); break;
-      case 'w': case 'W': pose.rx += degToRad(step); break;
-      case 's': case 'S': pose.rx -= degToRad(step); break;
-      case 'a': case 'A': pose.ry -= degToRad(step); break;
-      case 'd': case 'D': pose.ry += degToRad(step); break;
+      case 'q': case 'Q': turn[2] -= degToRad(step); break;
+      case 'e': case 'E': turn[2] += degToRad(step); break;
+      case 'w': case 'W': turn[0] += degToRad(step); break;
+      case 's': case 'S': turn[0] -= degToRad(step); break;
+      case 'a': case 'A': turn[1] -= degToRad(step); break;
+      case 'd': case 'D': turn[1] += degToRad(step); break;
       default: handled = false;
     }
     if (handled) {
-      controller.requestPose(stepTranslation(pose, move, frameOf()), { source: 'keyboard' });
+      const axes = frameOf();
+      controller.requestPose(stepRotation(stepTranslation(state.requested, move, axes), turn, axes), { source: 'keyboard' });
       event.preventDefault?.();
     }
   }
@@ -377,12 +378,11 @@ export function createSimulatorView({ document, window, controller, isActive = (
           const button = index => pad.buttons?.[index]?.value || 0;
           const movement = [axis(0), axis(1), axis(2), axis(3), button(7) - button(6), button(5) - button(4)];
           if (movement.some(Boolean)) {
+            const axes = frameOf();
             const moved = stepTranslation(state.requested, [movement[0] * 25 * delta,
-              -movement[1] * 25 * delta, movement[4] * 25 * delta], frameOf());
-            const next = { ...moved,
-              rx: state.requested.rx + movement[2] * 0.3 * delta,
-              ry: state.requested.ry - movement[3] * 0.3 * delta,
-              rz: state.requested.rz + movement[5] * 0.3 * delta };
+              -movement[1] * 25 * delta, movement[4] * 25 * delta], axes);
+            const next = stepRotation(moved, [movement[2] * 0.3 * delta,
+              -movement[3] * 0.3 * delta, movement[5] * 0.3 * delta], axes);
             controller.requestPose(next, { source: 'gamepad' });
           }
         }
@@ -396,9 +396,9 @@ export function createSimulatorView({ document, window, controller, isActive = (
   });
 
   return { renderer, getCamera: () => structuredClone(camera),
-    getTranslationFrame: frameOf,
-    setTranslationFrame(frame) {
-      translationFrame.value = resolveTranslationFrame(frame);
+    getInputFrame: frameOf,
+    setInputFrame(frame) {
+      inputFrame.value = resolveInputFrame(frame);
       syncPoseFields(controller.getState(), true);
     },
     setCamera(next) {

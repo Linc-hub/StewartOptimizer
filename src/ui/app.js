@@ -431,7 +431,7 @@ export function createApp({ document, window, Optimizer = DefaultOptimizer, work
                 tracesEnabled: state.tracesEnabled, overlays: state.overlays, reachability: state.reachability,
                 workspaceRanges: workspaceRangesToJSON(state.workspaceRanges), loadModel: state.loadModel, trace: state.trace,
                 camera: simulatorView.getCamera(), pointerMode: document.getElementById('simPointerMode').value,
-                translationFrame: simulatorView.getTranslationFrame() } }, null, 2);
+                inputFrame: simulatorView.getInputFrame() } }, null, 2);
     }
     document.getElementById('simUseReference').addEventListener('click', () => {
         try {
@@ -473,7 +473,7 @@ export function createApp({ document, window, Optimizer = DefaultOptimizer, work
             simulatorController.setAnimation(pattern, false, { speed });
         }
         if (saved.pointerMode) document.getElementById('simPointerMode').value = saved.pointerMode;
-        if (saved.translationFrame) simulatorView.setTranslationFrame(saved.translationFrame);
+        if (saved.inputFrame) simulatorView.setInputFrame(saved.inputFrame);
         if (saved.markers !== null) simulatorController.setMarkers(saved.markers);
         if (saved.tracesEnabled !== null) simulatorController.setTraces(saved.tracesEnabled);
         if (saved.reachability) simulatorController.setReachabilityCloud(saved.reachability);

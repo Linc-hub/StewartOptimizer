@@ -3,20 +3,21 @@ import assert from 'node:assert/strict';
 import { createSimulatorController } from '../../src/simulator/controller.js';
 import { axisCssColor, createSimulatorView } from '../../src/simulator/view.js';
 import { SCENE_COLORS } from '../../src/simulator/scene.js';
-import { resolveTranslationFrame, stepTranslation, TRANSLATION_FRAMES, translationFromFrame,
-  translationInFrame } from '../../src/simulator/translation-frame.js';
+import { eulerFromRotation, resolveInputFrame, rotationFromVector, stepRotation, stepTranslation, INPUT_FRAMES,
+  translationFromFrame, translationInFrame } from '../../src/simulator/input-frame.js';
+import { rotationMatrixFromEuler } from '../../src/math.js';
 import { asymmetricJointFixture } from '../fixtures/layout.js';
 import { createFakeDocument } from './helpers.js';
 
-// Platform-frame translation inputs, checked against hand-written rotations
-// rather than the rotation helper they use.
+// Platform-frame translation and rotation inputs, checked against hand-written
+// rotations rather than the rotation helper they use.
 const deg = value => value * Math.PI / 180;
 const close = (actual, expected, label, tolerance = 1e-9) => expected.forEach((value, k) =>
   assert.ok(Math.abs(actual[k] - value) < tolerance, `${label}: ${actual} vs ${expected}`));
 
 test('the base frame passes translations through and unknown frames read as base', () => {
-  assert.deepEqual(TRANSLATION_FRAMES, ['base', 'platform']);
-  for (const frame of ['', null, undefined, 'world']) assert.equal(resolveTranslationFrame(frame), 'base');
+  assert.deepEqual(INPUT_FRAMES, ['base', 'platform']);
+  for (const frame of ['', null, undefined, 'world']) assert.equal(resolveInputFrame(frame), 'base');
   const pose = { x: 3, y: -4, z: 5, rx: 0.2, ry: -0.1, rz: 0.7 };
   assert.deepEqual(translationInFrame(pose, 'base'), [3, -4, 5]);
   assert.deepEqual(translationFromFrame([3, -4, 5], pose, 'base'), [3, -4, 5]);
@@ -77,28 +78,28 @@ test('switching frames re-reads the fields without moving the platform', () => {
   const t = deg(20);
   controller.requestPose({ x: 10, rz: t });
   const before = { ...requested() };
-  assert.equal(view.getTranslationFrame(), 'base');
+  assert.equal(view.getInputFrame(), 'base');
   assert.equal(input('simXInput').value, '10');
-  view.setTranslationFrame('platform');
-  assert.equal(view.getTranslationFrame(), 'platform');
-  assert.equal(input('simTranslationFrame').value, 'platform');
+  view.setInputFrame('platform');
+  assert.equal(view.getInputFrame(), 'platform');
+  assert.equal(input('simInputFrame').value, 'platform');
   assert.equal(input('simXInput').value, String(Number((10 * Math.cos(t)).toFixed(2))));
   assert.equal(input('simYInput').value, String(Number((-10 * Math.sin(t)).toFixed(2))));
   assert.deepEqual(requested(), before, 'a frame switch moved the platform');
   // The select's own change event does the same.
-  input('simTranslationFrame').value = 'base';
-  input('simTranslationFrame').dispatch('change');
+  input('simInputFrame').value = 'base';
+  input('simInputFrame').dispatch('change');
   assert.equal(input('simXInput').value, '10');
   assert.deepEqual(requested(), before);
-  view.setTranslationFrame('nonsense');
-  assert.equal(view.getTranslationFrame(), 'base', 'an unknown frame falls back to base');
+  view.setInputFrame('nonsense');
+  assert.equal(view.getInputFrame(), 'base', 'an unknown frame falls back to base');
 });
 
 test('in the platform frame a translation field moves along the platform axis and a rotation edit keeps the origin', () => {
   const { controller, view, input, requested } = mount();
   const t = deg(20);
   controller.requestPose({ rz: t });
-  view.setTranslationFrame('platform');
+  view.setInputFrame('platform');
   input('simXInput').value = '5';
   input('simXInput').dispatch('change');
   close([requested().x, requested().y, requested().z], [5 * Math.cos(t), 5 * Math.sin(t), 0], 'local X field');
@@ -122,7 +123,7 @@ test('keyboard, Move platform drags and the gamepad step along the platform axes
   const { document, controller, view, input, requested } = mount({ window });
   const t = deg(30), c = Math.cos(t), s = Math.sin(t);
   controller.requestPose({ rz: t });
-  view.setTranslationFrame('platform');
+  view.setInputFrame('platform');
   const press = key => document.dispatch('keydown', { key, target: { tagName: 'BODY' }, preventDefault() {} });
   press('ArrowRight');
   close([requested().x, requested().y, requested().z], [c, s, 0], 'ArrowRight');
@@ -142,4 +143,80 @@ test('keyboard, Move platform drags and the gamepad step along the platform axes
   frames.at(-1)(100);
   close([requested().x, requested().y], [25 * 0.1 * c, 25 * 0.1 * s], 'left stick X along local X');
   assert.ok(Math.abs(requested().rz - t) < 1e-12, 'translation input never rotates');
+});
+
+// The platform's own Z axis (its normal) in the base frame: column 3 of R.
+const normalOf = pose => rotationMatrixFromEuler(pose.rx, pose.ry, pose.rz).map(row => row[2]);
+
+test('rotation vectors and Euler extraction agree with the Euler convention', () => {
+  const t = deg(25);
+  close(rotationFromVector([t, 0, 0]).flat(), rotationMatrixFromEuler(t, 0, 0).flat(), 'about X');
+  close(rotationFromVector([0, t, 0]).flat(), rotationMatrixFromEuler(0, t, 0).flat(), 'about Y');
+  close(rotationFromVector([0, 0, t]).flat(), rotationMatrixFromEuler(0, 0, t).flat(), 'about Z');
+  close(rotationFromVector([0, 0, 0]).flat(), [1, 0, 0, 0, 1, 0, 0, 0, 1], 'zero vector');
+  for (const angles of [[12, -7, 41], [-29, 28, -170], [80, -60, 135]]) {
+    const [rx, ry, rz] = angles.map(deg);
+    const back = eulerFromRotation(rotationMatrixFromEuler(rx, ry, rz));
+    close([back.rx, back.ry, back.rz], [rx, ry, rz], `round trip ${angles}`);
+  }
+  // Crossing ±180° keeps the angle continuous with the previous one.
+  const wrapped = eulerFromRotation(rotationMatrixFromEuler(0, 0, deg(181)), { rx: 0, ry: 0, rz: deg(179) });
+  close([wrapped.rz], [deg(181)], 'unwrapped toward the previous angle');
+  // At gimbal lock the matrix is still reproduced, holding the previous rx.
+  for (const ry of [Math.PI / 2, -Math.PI / 2]) {
+    const m = rotationMatrixFromEuler(0.3, ry, 0.5);
+    const locked = eulerFromRotation(m, { rx: 0.3, ry, rz: 0.5 });
+    assert.equal(locked.rx, 0.3);
+    close(rotationMatrixFromEuler(locked.rx, locked.ry, locked.rz).flat(), m.flat(), `gimbal lock ry=${ry}`);
+  }
+});
+
+test('a rotation step turns about the base or the platform axes and keeps the origin', () => {
+  const t = deg(10);
+  const yawed = { x: 4, y: -2, z: 7, rx: 0, ry: 0, rz: deg(90) };
+  // Base frame: tilting about the fixed X axis swings the normal toward -Y.
+  const base = stepRotation(yawed, [t, 0, 0], 'base');
+  close(normalOf(base), [0, -Math.sin(t), Math.cos(t)], 'base X tilt');
+  // Platform frame: after a 90° yaw the platform's X axis is the base Y axis,
+  // so the same tilt swings the normal toward +X.
+  const platform = stepRotation(yawed, [t, 0, 0], 'platform');
+  close(normalOf(platform), [Math.sin(t), 0, Math.cos(t)], 'platform X tilt');
+  close([platform.rx, platform.ry, platform.rz], [t, 0, deg(90)], 'platform X tilt is an rx step here');
+  for (const pose of [base, platform]) close([pose.x, pose.y, pose.z], [4, -2, 7], 'origin kept');
+  // At home both frames agree.
+  const home = { x: 0, y: 0, z: 0, rx: 0, ry: 0, rz: 0 };
+  const a = stepRotation(home, [0, t, 0], 'base'), b = stepRotation(home, [0, t, 0], 'platform');
+  close([a.rx, a.ry, a.rz], [b.rx, b.ry, b.rz], 'home');
+  // A base-frame yaw of a tilted platform only changes rz.
+  const tilted = stepRotation({ ...home, rx: deg(15) }, [0, 0, deg(1)], 'base');
+  close([tilted.rx, tilted.ry, tilted.rz], [deg(15), 0, deg(1)], 'base yaw');
+  assert.deepEqual(stepRotation(yawed, [0, 0, 0], 'platform'), yawed, 'a zero step changes nothing');
+});
+
+test('rotation keys and the gamepad tilt about the selected frame', () => {
+  const frames = [];
+  const pad = { axes: [0, 0, 0, 0], buttons: [] };
+  const window = { addEventListener() {}, requestAnimationFrame: fn => { frames.push(fn); return frames.length; },
+    navigator: { getGamepads: () => [pad] } };
+  const { document, controller, view, input, requested } = mount({ window });
+  const yaw = deg(90), one = deg(1);
+  const press = key => document.dispatch('keydown', { key, target: { tagName: 'BODY' }, preventDefault() {} });
+  controller.requestPose({ rz: yaw });
+  press('w');
+  close(normalOf(requested()), [0, -Math.sin(one), Math.cos(one)], 'base W');
+  controller.requestPose({ rz: yaw });
+  view.setInputFrame('platform');
+  press('w');
+  close(normalOf(requested()), [Math.sin(one), 0, Math.cos(one)], 'platform W');
+  // The rotation fields keep showing the stored base-frame angles.
+  assert.equal(input('simRXInput').value, '1');
+  assert.equal(input('simRZInput').value, '90');
+  controller.requestPose({ rz: yaw });
+  input('simGamepad').checked = true;
+  pad.axes = [0, 0, 1, 0];
+  frames.at(-1)(0);
+  frames.at(-1)(100);
+  const tilt = 0.3 * 0.1;
+  close(normalOf(requested()), [Math.sin(tilt), 0, Math.cos(tilt)], 'platform right stick');
+  close([requested().x, requested().y, requested().z], [0, 0, 0], 'a tilt keeps the origin');
 });
