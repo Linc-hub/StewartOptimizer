@@ -14,6 +14,7 @@ import { DEFAULT_BALL_JOINT_LIMIT_DEG, DEFAULT_LINK_CLEARANCE_MM, MODEL_VERSION 
 import { normalizeTrajectory, trajectorySummary } from '../model/trajectory.js';
 import { average, clamp, degToRad } from '../math.js';
 import { objectiveValues } from './objectives.js';
+import { layoutFootprint } from './compactness.js';
 
 // Direct callers may omit the limits and the cycle identity that the Optimizer
 // always supplies; resolve them once so every stage, the limit margin and the
@@ -114,9 +115,10 @@ export async function evaluateLayout(layout, rawOptions) {
     marginFor(Math.max(0, ...(stats.reachableUpperJointMax ?? [])), upperBallJointLimitDeg),
   ), 0, 1);
   const fatigue = computeFatigue(cycle);
+  const footprint = layoutFootprint(layout);
   const objectives = objectiveValues({ coverage, relaxedCoverage,
     conditioningQuality: availableQuality, dexterity, stiffness: stiffnessScore,
-    physicalStiffness, loadBalance, loadSharing, isotropy, limitMargin, torque, speedDemand, fatigue },
+    physicalStiffness, loadBalance, loadSharing, isotropy, limitMargin, torque, speedDemand, fatigue, footprint },
   options.objectiveSet, options.objectiveVariant);
 
   const feasibility = {
@@ -177,6 +179,7 @@ export async function evaluateLayout(layout, rawOptions) {
     isotropy,
     limitMargin,
     fatigue,
+    footprint,
     condition,
     objectives,
     homePose: homeResult,

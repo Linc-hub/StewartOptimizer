@@ -7,7 +7,9 @@ import { configurationSummary, retainConfigurations, searchedConfigurations } fr
 import { dominates, fastNonDominatedSort, assignCrowdingDistance, tournamentSelect, selectFromFronts } from './nsga2.js';
 import { evaluateLayout, evaluateCycle, computeFatigue } from './evaluate-layout.js';
 import { estimateWork } from './budget.js';
-import { selectBest, exportResult, layoutToJSON } from '../io/results.js';
+import { selectBest, exportResult, layoutToJSON, isPassing } from '../io/results.js';
+import { boundsExcursions, relaxedDesignSpace, RELAXATION_IMMIGRANT_SHARE, RELAXATION_STEPS, validateBoundsRelaxation }
+  from './relaxation.js';
 import { DEFAULT_TOPOLOGY, TOPOLOGIES, DEFAULT_BALL_JOINT_LIMIT_DEG, DEFAULT_LINK_CLEARANCE_MM } from '../contracts.js';
 import { normalizeSampling } from '../workspace/sampling.js';
 import { createRandom, normalizeSeed, RANDOM_ALGORITHM } from './random.js';
@@ -78,6 +80,8 @@ export class Optimizer {
     topology = DEFAULT_TOPOLOGY,
     hornDirection = DEFAULT_HORN_DIRECTION_MODE,
     legPairing = DEFAULT_LEG_PAIRING_MODE,
+    compactness = false,
+    boundsRelaxation = 0,
     referenceLayout = null,
     homeHeightBounds,
     ballJointLimitDeg,
@@ -176,6 +180,11 @@ export class Optimizer {
         ?? designSpace.homeHeightBounds ?? DEFAULT_DESIGN_SPACE.homeHeightBounds,
     };
     validateDesignSpace(this.designSpace);
+    if (typeof compactness !== 'boolean') throw new TypeError('compactness must be true or false.');
+    this.compactness = compactness;
+    this.boundsRelaxation = validateBoundsRelaxation(boundsRelaxation);
+    this.relaxationShare = 0;
+    this.relaxationHistory = [];
 
     validatePhysicalRequirements({ ...cycleInput, mass_kg: this.payload, cycle_mm: this.stroke,
       frequency_hz: this.frequency, cycle_axis: this.cycleAxis,
@@ -191,7 +200,8 @@ export class Optimizer {
     this.massProperties = normalizeMassProperties({ ...cycleInput, mass_kg: this.payload });
     this.stiffnessModel = normalizeStiffnessModel(requirements.stiffness_model);
     this.payloadSupport = normalizePayloadSupport(requirements.workspace_payload_support);
-    this.objectiveVariant = { stiffnessMetric: this.stiffnessModel?.useAsObjective ? 'physicalStiffness' : 'stiffness' };
+    this.objectiveVariant = { stiffnessMetric: this.stiffnessModel?.useAsObjective ? 'physicalStiffness' : 'stiffness',
+      ...(this.compactness ? { footprint: true } : {}) };
     this.servoRangeRad = this.servoRangeDeg.map((deg) => degToRad(deg));
     this.referenceDiagnostics = null;
     if (this.referenceLayout) {
@@ -234,7 +244,31 @@ export class Optimizer {
     return createRandomLayout({ ...options, id: this.nextLayoutId++ });
   }
 
-  layoutOptions() { return { designSpace: this.designSpace, servoRangeRad: this.servoRangeRad,
+  // The space layouts are drawn and clamped in: the nominal design space,
+  // widened by the current relaxation share in a run that allows it.
+  activeDesignSpace() { return relaxedDesignSpace(this.designSpace, this.relaxationShare); }
+
+  // After each generation without a passing retained candidate, widen the
+  // bounds by another step, up to the run's boundsRelaxation share.
+  updateRelaxation(evaluations, generation) {
+    if (!(this.boundsRelaxation > 0)) return;
+    const passing = evaluations.filter(isPassing).length;
+    if (!passing && this.relaxationShare < this.boundsRelaxation) {
+      this.relaxationShare = Math.min(this.boundsRelaxation, this.relaxationShare + this.boundsRelaxation / RELAXATION_STEPS);
+      this.pendingImmigrants = Math.max(1, Math.ceil(this.populationSize * RELAXATION_IMMIGRANT_SHARE));
+    }
+    this.relaxationHistory.push({ generation, passing, share: this.relaxationShare });
+  }
+
+  // The relaxation record for a run that allows it, else null.
+  relaxationSummary() {
+    if (!(this.boundsRelaxation > 0)) return null;
+    const relaxed = this.fitness.filter(evaluation => evaluation.boundsExcursions?.length).length;
+    return { maxShare: this.boundsRelaxation, finalShare: this.relaxationShare,
+      designSpace: this.activeDesignSpace(), outsideNominal: relaxed, history: this.relaxationHistory };
+  }
+
+  layoutOptions() { return { designSpace: this.activeDesignSpace(), servoRangeRad: this.servoRangeRad,
     servoRangeDeg: this.servoRangeDeg, topology: this.topology, hornDirection: this.hornDirection,
       legPairing: this.legPairing, random: this.random }; }
   finalizeLayout(layout) { return finalizeLayout(layout, this.layoutOptions()); }
@@ -289,9 +323,13 @@ export class Optimizer {
   assignCrowdingDistance(fronts, evaluations) { return assignCrowdingDistance(fronts, evaluations); }
   tournamentSelect(evaluations) { return tournamentSelect(evaluations, this.random); }
 
+  // After a relaxation step the last few offspring are fresh layouts drawn in
+  // the widened space (seedOrigin 'relaxation'); otherwise all are bred.
   createOffspring(evaluations) {
     const offspring = [];
-    while (offspring.length < this.populationSize) {
+    const immigrants = this.pendingImmigrants ?? 0;
+    this.pendingImmigrants = 0;
+    while (offspring.length < this.populationSize - immigrants) {
       const parentA = this.tournamentSelect(evaluations);
       const parentB = this.tournamentSelect(evaluations);
       let child = this.crossoverLayouts(parentA.layout, parentB.layout);
@@ -303,6 +341,11 @@ export class Optimizer {
       delete child.referenceDiagnostics;
       delete child.migration;
       offspring.push(child);
+    }
+    while (offspring.length < this.populationSize) {
+      const layout = this.createRandomLayout();
+      layout.seedOrigin = 'relaxation';
+      offspring.push(layout);
     }
     return offspring;
   }
@@ -364,6 +407,7 @@ export class Optimizer {
         }
         this.referenceEvaluation = result;
       }
+      if (this.boundsRelaxation > 0) result.boundsExcursions = boundsExcursions(layout, this.designSpace);
       results.push(result);
       this.completedPoseWork += (result.workspace.workUnits ?? result.workspace.total) + 1 + result.cycle.samples;
       this.completedEvaluations += 1;
@@ -394,6 +438,8 @@ export class Optimizer {
       topology: this.topology,
       hornDirection: this.hornDirection,
       legPairing: this.legPairing,
+      compactness: this.compactness,
+      boundsRelaxation: this.boundsRelaxation,
       homeHeightBounds: this.designSpace.homeHeightBounds,
       ballJointLimitDeg: this.ballJointLimitDeg,
       lowerBallJointLimitDeg: this.lowerBallJointLimitDeg,
@@ -424,12 +470,16 @@ export class Optimizer {
     this.completedPoseWork = 0;
     this.nextLayoutId = 1;
     this.freshLayouts = 0;
+    this.relaxationShare = 0;
+    this.relaxationHistory = [];
+    this.pendingImmigrants = 0;
     this.random = createRandom(this.seed);
     this.population = initialPopulation(this);
     let evaluations = await this.evaluatePopulation(this.population);
     let fronts = this.fastNonDominatedSort(evaluations);
     this.assignCrowdingDistance(fronts, evaluations);
     this.updateState(evaluations, fronts);
+    this.updateRelaxation(evaluations, 0);
     this.emitCheckpoint();
 
     for (let gen = 0; gen < this.generations; gen++) {
@@ -444,6 +494,7 @@ export class Optimizer {
       fronts = this.fastNonDominatedSort(evaluations);
       this.assignCrowdingDistance(fronts, evaluations);
       this.updateState(evaluations, fronts);
+      this.updateRelaxation(evaluations, gen + 1);
       this.generation = gen + 1;
       this.emitCheckpoint();
     }
@@ -511,6 +562,7 @@ export class Optimizer {
       status: this.runStatus, completedGenerations: this.generation, partial: this.runStatus !== 'completed',
       effective_settings: this.effectiveSettings(),
       ...(this.configurations.length > 1 ? { configuration_summary: this.configurationSummary() } : {}),
+      ...(this.boundsRelaxation > 0 ? { bounds_relaxation: this.relaxationSummary() } : {}),
     }), null, 2);
   }
 }
