@@ -201,6 +201,22 @@ or the Simulate tab is hidden. An optional gamepad maps the left stick to X/Y,
 the right stick to tilt, the triggers to Z and the shoulder buttons to yaw with
 a 0.15 dead zone. Pose requests do not change anchor coordinates.
 
+The pose labels share the colours of the axes drawn in the view: X and Rx red,
+Y and Ry green, Z and Rz blue. The colours come from `SCENE_COLORS` in
+`src/simulator/scene.js` (published as the `--axis-x/y/z` CSS variables) and
+do not change with the frame. **Translate along** chooses the frame for every
+translation input (`src/simulator/translation-frame.js`). **Base axes**
+(default) is the fixed world frame at the base plate. **Platform axes** is the
+frame of the requested pose, so X moves along the platform's own red axis. In
+that frame the X/Y/Z fields and sliders read the requested translation `t` as
+`Rᵀ t`, an edited field requests `t = R t_local`, and arrow and Page keys,
+**Move platform** drags and the gamepad sticks and triggers step along the
+platform axes. A rotation field or key edit keeps the platform origin where it
+is. Rotation inputs are the same in both frames (`R = Rz Ry Rx`). Poses are
+always stored, evaluated, animated and saved in the base frame; switching
+frames only changes how the fields read the same pose and never moves the
+platform.
+
 **Use geometry as optimizer reference** copies the active layout and a replay
 snapshot to the optimizer's reference JSON field. **Load optimizer reference**
 can restore that layout and saved requested/accepted poses. **Download simulator
@@ -219,7 +235,8 @@ toggles), `reachability` (`sampleCount` 256, 1024 or 4096, `mode` `cloud` or
 `slice`, finite `sliceZ` in mm; other keys are dropped, and a file without the
 block keeps the current settings; whether the cloud is on is
 `overlays.reachabilityCloud`, and the samples themselves are never saved, so a
-load sweeps afresh), `workspaceRanges` and `loadModel` (see below) and `pointerMode` (`orbit` or `platform`). A rejected
+load sweeps afresh), `workspaceRanges` and `loadModel` (see below), `pointerMode` (`orbit` or `platform`) and
+`translationFrame` (`base` or `platform`; a file without it keeps the current frame). A rejected
 file or browser save reports the offending `simulator.` field and leaves the
 current layout, pose, camera, animation and, for a browser save, the optimizer
 inputs untouched. If WebGL2 is unavailable, the simulator names the missing capability
