@@ -3,6 +3,7 @@ import { hornFrameAxes } from '../model/kinematics.js';
 import { translationSingularSystem } from '../model/conditioning.js';
 import { effectiveServoRange, socketNormalsInWorld } from '../model/pose.js';
 import { violationLegs } from '../model/collision.js';
+import { capabilityCoverage } from './capability.js';
 
 // The scene is a list of builders, each `(state, layout, solved) => { lines, points }`.
 // `solved` is the accepted assessment (it may be null); nothing here evaluates a
@@ -17,7 +18,7 @@ export const SCENE_COLORS = Object.freeze({
   servo: [1, 0.42, 0.39], trace: [0.72, 0.5, 1],
   x: [1, 0.38, 0.38], y: [0.39, 0.92, 0.47], z: [0.42, 0.62, 1],
   limitRange: [0.5, 0.56, 0.66], nearLimit: [1, 0.88, 0.2],
-  grid: [0.16, 0.2, 0.27], workspace: [0.32, 0.7, 0.76],
+  grid: [0.16, 0.2, 0.27], workspace: [0.32, 0.7, 0.76], capability: [0.78, 0.8, 0.86],
   reachable: [0.36, 0.9, 0.5], unreachable: [0.5, 0.2, 0.25],
   wellConditioned: [0.42, 0.85, 1],
   compression: [0.3, 0.55, 1], tension: [0.95, 0.4, 0.2], torqueLow: [0.36, 0.9, 0.5],
@@ -36,7 +37,7 @@ const dim = color => color.map((value, k) => SCENE_BACKGROUND[k] + (value - SCEN
 // Toggleable overlays and whether each is drawn when a state or saved file
 // does not say. New overlays default off unless their issue says otherwise.
 export const OVERLAY_DEFAULTS = Object.freeze({ groundGrid: true, servoArcs: false, jointCones: false,
-  workspaceBox: false, reachabilityCloud: false, conditioningEllipsoid: false, loads: false, requestedGhost: true,
+  workspaceBox: false, capabilityBox: false, reachabilityCloud: false, conditioningEllipsoid: false, loads: false, requestedGhost: true,
   platformAxes: true, worldAxes: true });
 export const OVERLAY_NAMES = Object.freeze(Object.keys(OVERLAY_DEFAULTS));
 // Limit overlays (servo travel, socket cones) tint a value this close to its
@@ -224,23 +225,42 @@ function jointCones(state, layout, solved) {
   return { lines, points: [] };
 }
 
+// The twelve edges of a box about home from per-axis { min, max } offsets (mm),
+// four along each axis, one for each min/max pair of the other two.
+// `color(axis)` colours the edges that run along that axis.
+function boxEdges({ x, y, z }, layout, color) {
+  const lines = [];
+  const corner = ([i, j, k]) => [[x.min, x.max][i], [y.min, y.max][j], layout.homeHeight + [z.min, z.max][k]];
+  for (const i of [0, 1]) {
+    for (const j of [0, 1]) {
+      for (const [axis, from, to] of [['x', [0, i, j], [1, i, j]], ['y', [i, 0, j], [i, 1, j]], ['z', [i, j, 0], [i, j, 1]]]) {
+        lines.push({ from: corner(from), to: corner(to), color: color(axis) });
+      }
+    }
+  }
+  return lines;
+}
+
 // The twelve edges of the requirement x/y/z ranges as a box about home: the
 // region the platform origin must reach, not the platform's extent. Rotation
 // ranges are not drawn; without all three translation ranges there is no box.
 function workspaceBox(state, layout) {
-  const lines = [];
   const { x, y, z } = state.workspaceRanges ?? {};
-  if (!x || !y || !z) return { lines, points: [] };
-  const corner = ([i, j, k]) => [[x.min, x.max][i], [y.min, y.max][j], layout.homeHeight + [z.min, z.max][k]];
-  // Four edges along each axis, one for each min/max pair of the other two.
-  for (const i of [0, 1]) {
-    for (const j of [0, 1]) {
-      for (const [from, to] of [[[0, i, j], [1, i, j]], [[i, 0, j], [i, 1, j]], [[i, j, 0], [i, j, 1]]]) {
-        lines.push({ from: corner(from), to: corner(to), color: COLORS.workspace });
-      }
-    }
-  }
-  return { lines, points: [] };
+  if (!x || !y || !z) return { lines: [], points: [] };
+  return { lines: boxEdges({ x, y, z }, layout, () => COLORS.workspace), points: [] };
+}
+
+// The capability box: the layout's own reach from home along each X, Y and Z
+// axis at the requested rotation, as the controller found it (`state.capability`;
+// nothing is evaluated here). Edges along an axis are green when that reach
+// covers the requirement range, yellow when it falls short, and light grey
+// without a requirement range. Its corners are not checked poses.
+function capabilityBox(state, layout) {
+  const extents = state.capability?.extents;
+  if (!extents) return { lines: [], points: [] };
+  const coverage = capabilityCoverage(extents, state.workspaceRanges);
+  const color = axis => coverage[axis] === null ? COLORS.capability : coverage[axis] ? COLORS.reachable : COLORS.nearLimit;
+  return { lines: boxEdges(extents, layout, color), points: [] };
 }
 
 // One point per evaluated reachability sample at its platform-origin position:
@@ -420,6 +440,7 @@ export const SCENE_BUILDERS = Object.freeze([
   { name: 'servoArcs', overlay: 'servoArcs', build: servoArcs },
   { name: 'jointCones', overlay: 'jointCones', build: jointCones },
   { name: 'workspaceBox', overlay: 'workspaceBox', build: workspaceBox },
+  { name: 'capabilityBox', overlay: 'capabilityBox', build: capabilityBox },
   { name: 'reachabilityCloud', overlay: 'reachabilityCloud', build: reachabilityCloud },
   { name: 'conditioningEllipsoid', overlay: 'conditioningEllipsoid', build: conditioningEllipsoid },
   { name: 'loads', overlay: 'loads', build: loads },

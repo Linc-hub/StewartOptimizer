@@ -195,11 +195,13 @@ test('each overlay toggle removes only its own builder output', () => {
   // Two published cloud samples give the default-off reachability cloud output,
   // and the default-off conditioning ellipsoid is switched on, as are the
   // default-off loads with a published solution and the default-off servo
-  // arcs, joint cones and workspace box.
+  // arcs, joint cones, workspace box and capability box (with a published result).
   const { legFailure: rejected } = frozenSceneStates();
   const state = { ...rejected,
     overlays: { ...rejected.overlays, reachabilityCloud: true, conditioningEllipsoid: true, loads: true,
-      servoArcs: true, jointCones: true, workspaceBox: true },
+      servoArcs: true, jointCones: true, workspaceBox: true, capabilityBox: true },
+    capability: { homeReachable: true, orientation: { rx: 0, ry: 0, rz: 0 },
+      extents: { x: { min: -30, max: 30 }, y: { min: -20, max: 25 }, z: { min: -10, max: 12 } } },
     loads: { valid: true, motion: 'static', reason: null, rodForceN: [3, -2, 4, -1, 2, 0.5],
       servoTorqueNm: [0.2, -0.1, 0.3, -0.05, 0.1, 0], servoSpeedRadPerSec: new Array(6).fill(0),
       ratedTorqueNm: new Array(6).fill(0.4), utilization: [0.5, 0.25, 0.75, 0.125, 0.25, 0], staticForceN: 10 },
@@ -209,7 +211,7 @@ test('each overlay toggle removes only its own builder output', () => {
   const parts = Object.fromEntries(SCENE_BUILDERS.map(builder =>
     [builder.name, builder.build(state, state.layout, state.acceptedAssessment)]));
   assert.deepEqual(SCENE_BUILDERS.map(builder => builder.name),
-    ['groundGrid', 'base', 'platform', 'legs', 'servoArcs', 'jointCones', 'workspaceBox', 'reachabilityCloud',
+    ['groundGrid', 'base', 'platform', 'legs', 'servoArcs', 'jointCones', 'workspaceBox', 'capabilityBox', 'reachabilityCloud',
       'conditioningEllipsoid', 'loads', 'requestedGhost', 'platformAxes', 'worldAxes', 'trace']);
   assert.deepEqual(SCENE_BUILDERS.filter(builder => builder.overlay).map(builder => builder.overlay), OVERLAY_NAMES);
   assert.equal(parts.platformAxes.lines.length, 3);
