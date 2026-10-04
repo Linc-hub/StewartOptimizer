@@ -134,6 +134,7 @@ test('the simulator download carries the loaded layout, pose state, camera and p
   element('simXInput').value = '4';
   element('simXInput').handlers.change();
   element('simPointerMode').value = 'platform';
+  element('simInputFrame').value = 'platform';
   element('simDownload').handlers.click();
   assert.equal(downloads.length, 1);
   assert.equal(downloads[0].name, 'stewart_simulator.json');
@@ -143,6 +144,7 @@ test('the simulator download carries the loaded layout, pose state, camera and p
   assert.equal(saved.run.effective_settings.populationSize, 4);
   assert.equal(saved.simulator.requested.x, 4);
   assert.equal(saved.simulator.pointerMode, 'platform');
+  assert.equal(saved.simulator.inputFrame, 'platform');
   assert.deepEqual(Object.keys(saved.simulator.camera).sort(), ['distance', 'pitch', 'target', 'yaw']);
   assert.equal(saved.simulator.source.candidateId, 23);
 });

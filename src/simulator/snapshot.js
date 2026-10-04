@@ -5,6 +5,7 @@ import { parseReachability } from './reachability.js';
 import { loadModelFromSettings, parseLoadModel } from './loads.js';
 import { parseOverlays } from './scene.js';
 import { parseCamera } from './view.js';
+import { INPUT_FRAMES } from './input-frame.js';
 
 export const POINTER_MODES = Object.freeze(['orbit', 'platform']);
 // Everything the simulator JSON `simulator.options` block may carry; other keys are dropped.
@@ -65,8 +66,8 @@ export function parseSimulatorSnapshot(saved, layout, fallbackOptions, fallbackR
 
   const result = { options, requested: pose(block.requested, 'simulator.requested'),
     accepted: pose(block.accepted, 'simulator.accepted'), camera: null, animation: null,
-    markers: null, tracesEnabled: null, overlays: null, reachability: null, pointerMode: null, workspaceRanges: null,
-    loadModel: null };
+    markers: null, tracesEnabled: null, overlays: null, reachability: null, pointerMode: null, inputFrame: null,
+    workspaceRanges: null, loadModel: null };
   if (block.loadModel != null) {
     result.loadModel = parseLoadModel(block.loadModel, 'simulator.loadModel')?.input ?? null;
   } else {
@@ -105,6 +106,13 @@ export function parseSimulatorSnapshot(saved, layout, fallbackOptions, fallbackR
       throw new RangeError(`simulator.pointerMode must be one of ${POINTER_MODES.join(', ')}.`);
     }
     result.pointerMode = block.pointerMode;
+  }
+  // Likewise an empty frame; a file without one keeps the current frame.
+  if (block.inputFrame != null && block.inputFrame !== '') {
+    if (!INPUT_FRAMES.includes(block.inputFrame)) {
+      throw new RangeError(`simulator.inputFrame must be one of ${INPUT_FRAMES.join(', ')}.`);
+    }
+    result.inputFrame = block.inputFrame;
   }
   return result;
 }

@@ -25,6 +25,7 @@ The p5/quaternion/Stewart scripts belong only to the [archived simulator](../arc
 | `src/simulator/scene.js` | Ordered scene builders (lines and points from accepted geometry) and overlay toggles |
 | `src/simulator/reachability.js` | Reachability cloud settings and the chunked, abortable translation sweep through the shared pose evaluator |
 | `src/simulator/renderer.js`, `view.js` | Native WebGL2 drawing and camera/input handling |
+| `src/simulator/input-frame.js` | Base or platform frame for incremental pose inputs: frame-local translation, rotation steps and Euler extraction |
 | `src/simulator/geometry-editor.js`, `geometry-controls.js` | Explicit or parametric editable layout copies |
 | `src/simulator/loads.js` | Simulator load model (payload and servo ratings in requirement keys) and rod force / servo torque at a solved pose through the cycle model |
 | `src/simulator/diagnostics.js` | Evaluator-driven per-leg joint/rod diagnostics, rod force, servo torque and effective limits |

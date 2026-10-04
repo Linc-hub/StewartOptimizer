@@ -40,6 +40,11 @@ main {
     border: 1px solid var(--border); border-radius: 8px; background: #0e131c; touch-action: none; }
 .sim-axis { display: grid; grid-template-columns: 30px minmax(80px, 1fr) 85px; gap: 8px; align-items: center; }
 .sim-axis input[type="range"] { width: 100%; }
+/* The view sets --axis-x/y/z from SCENE_COLORS; the fallbacks are the same colours. */
+.axis-label { font-weight: 700; }
+.axis-x { color: var(--axis-x, rgb(255, 97, 97)); }
+.axis-y { color: var(--axis-y, rgb(99, 235, 120)); }
+.axis-z { color: var(--axis-z, rgb(107, 158, 255)); }
 .sim-controls h2 { font-size: 18px; margin-top: 6px; }
 .sim-controls p { font-size: 13px; line-height: 1.5; }
 .sim-overlay-info { margin-top: 8px; }
