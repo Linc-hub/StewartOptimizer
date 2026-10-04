@@ -48,6 +48,24 @@ test('every workspace range input and per-servo rating reaches the optimizer opt
   assert.match(element('optStatus').textContent, /Servo 3 speed rating must be a finite positive number/);
 });
 
+test('the C3 horn direction control shows only for C3 and reaches the optimizer', async () => {
+  let captured;
+  const element = await loadUI(stubOptimizer(value => { captured = value; }));
+  element('optTopology').value = 'c3_paired';
+  element('optTopology').handlers.change();
+  assert.equal(element('optHornDirectionField').hidden, false);
+  element('optHornDirection').value = 'both';
+  await element('runOptimization').handlers.click();
+  assert.equal(captured.options.topology, 'c3_paired');
+  assert.equal(captured.options.hornDirection, 'both');
+  // Another topology hides the control and runs outward whatever it still shows.
+  element('optTopology').value = 'circular';
+  element('optTopology').handlers.change();
+  assert.equal(element('optHornDirectionField').hidden, true);
+  await element('runOptimization').handlers.click();
+  assert.equal(captured.options.hornDirection, 'outward');
+});
+
 test('Clear Requirements empties the inputs and results and disables copy and simulator download', async () => {
   let constructed = 0;
   const element = await loadUI(stubOptimizer(() => { constructed++; }));

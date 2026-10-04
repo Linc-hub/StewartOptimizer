@@ -1,7 +1,7 @@
 import { clamp, randomNormal, degToRad } from '../math.js';
 import { DEFAULT_TOPOLOGY, TOPOLOGIES } from '../contracts.js';
-import { topologyGeometry, topologyFields, validateTopology, wrapAngle,
-  PAIRED_HORN_TOPOLOGIES, DEFAULT_BETA_PAIR_OFFSET, C3_BETA_OFFSET_LIMIT } from './topology.js';
+import { topologyGeometry, topologyFields, validateTopology, wrapAngle, c3HornDirection,
+  PAIRED_HORN_TOPOLOGIES, DEFAULT_BETA_PAIR_OFFSET, C3_BETA_OFFSET_LIMIT, C3_HORN_DIRECTIONS } from './topology.js';
 
 export const DEFAULT_DESIGN_SPACE = {
   baseRadius: [90, 160], platformRadius: [40, 120], homeHeightBounds: [50, 450],
@@ -10,6 +10,32 @@ export const DEFAULT_DESIGN_SPACE = {
   betaJitterRad: degToRad(20), anchorJitter: 6, platformJitter: 6, baseZJitter: 2,
   mutationHorn: 4, mutationRod: 6, mutationHeight: 15, mutationAngle: degToRad(4),
 };
+
+// The C3 horn directions an optimizer run may generate: one fixed direction,
+// or `both`, where each new layout draws one, crossover inherits it and
+// mutation occasionally flips it.
+export const HORN_DIRECTION_MODES = Object.freeze([...C3_HORN_DIRECTIONS, 'both']);
+export const DEFAULT_HORN_DIRECTION_MODE = 'outward';
+export const HORN_DIRECTION_FLIP_PROBABILITY = 0.1;
+
+export function validateHornDirectionMode(mode, topology) {
+  if (!HORN_DIRECTION_MODES.includes(mode)) {
+    throw new RangeError(`hornDirection must be one of ${HORN_DIRECTION_MODES.join(', ')}.`);
+  }
+  if (topology !== 'c3_paired' && mode !== DEFAULT_HORN_DIRECTION_MODE) {
+    throw new RangeError('hornDirection applies to c3_paired layouts only.');
+  }
+  return mode;
+}
+
+// Holds a C3 layout's horn direction to a fixed mode. Outward leaves a missing
+// direction missing, so default runs export exactly what they always have; an
+// undefined mode (a caller outside an optimizer run) changes nothing.
+function applyHornDirection(p, mode) {
+  if (mode === 'inward') p.horn_direction = 'inward';
+  else if (mode === 'outward') { if (p.horn_direction !== undefined) p.horn_direction = 'outward'; }
+  else if (mode === 'both') p.horn_direction ??= 'outward';
+}
 
 const randomInRange = ([min, max], random) => min + random() * (max - min);
 
@@ -28,7 +54,7 @@ function pairGapRange(radius, space) {
   return [min, ceiling];
 }
 
-function regenerateBoundedTopology(layout, space) {
+function regenerateBoundedTopology(layout, space, hornDirection) {
   const { topology, topologyParameters: p } = layout;
   const minimum = topology === 'c3_paired' ? space.pairGapBounds[0] / 1.2 : 0;
   p.base_radius = clamp(p.base_radius, Math.max(space.baseRadius[0], minimum), space.baseRadius[1]);
@@ -42,6 +68,7 @@ function regenerateBoundedTopology(layout, space) {
   if (topology === 'c3_paired') {
     p.base_pair_gap = clamp(p.base_pair_gap, ...pairGapRange(p.base_radius, space));
     p.platform_pair_gap = clamp(p.platform_pair_gap, ...pairGapRange(p.platform_radius, space));
+    applyHornDirection(p, hornDirection);
   }
   if (topology === 'rectangular_paired') {
     p.base_aspect = clamp(p.base_aspect, ...space.rectangularAspectBounds);
@@ -60,7 +87,11 @@ function clampPointRadius(anchor, bounds) {
   }
 }
 
-function randomParameters(topology, space, random) {
+// Inward and `both` runs draw the C3 horn offset over the full +/-90 deg:
+// inward horns near tangent usually cross their partner across the pair gap.
+// Every extra draw comes after the existing ones and only in those modes, so an
+// outward (default) run consumes exactly the random stream it always has.
+function randomParameters(topology, space, random, hornDirection = DEFAULT_HORN_DIRECTION_MODE) {
   const radiusBounds = bounds => topology === 'c3_paired'
     ? [Math.max(bounds[0], space.pairGapBounds[0] / 1.2), bounds[1]] : bounds;
   const p = {
@@ -69,11 +100,14 @@ function randomParameters(topology, space, random) {
     base_orientation: randomInRange([-Math.PI, Math.PI], random),
   };
   if (topology !== 'c3_paired') p.platform_orientation = randomInRange([-Math.PI, Math.PI], random);
-  p.beta_offset = randomInRange([-space.betaJitterRad, space.betaJitterRad], random);
+  const betaRange = topology === 'c3_paired' && hornDirection !== 'outward' ? C3_BETA_OFFSET_LIMIT : space.betaJitterRad;
+  p.beta_offset = randomInRange([-betaRange, betaRange], random);
   if (PAIRED_HORN_TOPOLOGIES.includes(topology)) p.beta_pair_offset = DEFAULT_BETA_PAIR_OFFSET;
   if (topology === 'c3_paired') {
     p.base_pair_gap = randomInRange(pairGapRange(p.base_radius, space), random);
     p.platform_pair_gap = randomInRange(pairGapRange(p.platform_radius, space), random);
+    if (hornDirection === 'inward') p.horn_direction = 'inward';
+    else if (hornDirection === 'both') p.horn_direction = random() < 0.5 ? 'outward' : 'inward';
   }
   if (topology === 'rectangular_paired') {
     p.base_aspect = randomInRange(space.rectangularAspectBounds, random);
@@ -98,10 +132,11 @@ export function validateDesignSpace(space) {
 
 export const cloneLayout = layout => JSON.parse(JSON.stringify(layout));
 
-export function createRandomLayout({ designSpace: space, servoRangeRad, servoRangeDeg, id, topology = DEFAULT_TOPOLOGY, random = Math.random }) {
+export function createRandomLayout({ designSpace: space, servoRangeRad, servoRangeDeg, id, topology = DEFAULT_TOPOLOGY,
+  hornDirection, random = Math.random }) {
   if (!TOPOLOGIES.includes(topology)) throw new Error(`topology must be one of ${TOPOLOGIES.join(', ')}.`);
   const layout = {
-    id, topology, topologyParameters: topology === 'free' ? {} : randomParameters(topology, space, random),
+    id, topology, topologyParameters: topology === 'free' ? {} : randomParameters(topology, space, random, hornDirection),
     baseAnchors: [], platformAnchors: [], betaAngles: [],
     hornLength: randomInRange(space.hornLengthBounds, random), rodLength: randomInRange(space.rodLengthBounds, random),
     servoRangeRad: servoRangeRad.slice(), homeHeight: randomInRange(space.homeHeightBounds, random),
@@ -120,13 +155,14 @@ export function createRandomLayout({ designSpace: space, servoRangeRad, servoRan
         + randomNormal(random) * space.betaJitterRad));
     }
   } else Object.assign(layout, topologyGeometry(topology, layout.topologyParameters));
-  return finalizeLayout(layout, { designSpace: space, servoRangeRad, servoRangeDeg });
+  return finalizeLayout(layout, { designSpace: space, servoRangeRad, servoRangeDeg, hornDirection });
 }
 
 // servoRangeDeg is the degree form of servoRangeRad when the caller has one (the
 // Optimizer's servo_travel_bounds_deg); exported servo_range then matches the run
-// settings exactly instead of the radians converted back.
-export function finalizeLayout(layout, { designSpace: space, servoRangeRad, servoRangeDeg = null }) {
+// settings exactly instead of the radians converted back. hornDirection is the
+// run's C3 horn direction mode; without one a layout keeps its own direction.
+export function finalizeLayout(layout, { designSpace: space, servoRangeRad, servoRangeDeg = null, hornDirection }) {
   const topology = validateTopology(layout);
   layout.topology = topology;
   layout.topologyParameters ??= topology === 'free' ? {} : layout.topology_parameters;
@@ -145,7 +181,7 @@ export function finalizeLayout(layout, { designSpace: space, servoRangeRad, serv
       point[2] = 0;
     }
   } else {
-    regenerateBoundedTopology(layout, space);
+    regenerateBoundedTopology(layout, space, hornDirection);
   }
   layout.servoRangeRad = servoRangeRad.slice();
   // The imported-degree copy would otherwise shadow the finalized range on export.
@@ -154,7 +190,7 @@ export function finalizeLayout(layout, { designSpace: space, servoRangeRad, serv
   return layout;
 }
 
-export function mutateLayout(source, { designSpace: space, servoRangeRad, servoRangeDeg, random = Math.random }) {
+export function mutateLayout(source, { designSpace: space, servoRangeRad, servoRangeDeg, hornDirection, random = Math.random }) {
   validateTopology(source);
   const layout = cloneLayout(source);
   if ((layout.topology ?? 'free') === 'free') {
@@ -187,6 +223,10 @@ export function mutateLayout(source, { designSpace: space, servoRangeRad, servoR
         ...pairGapRange(p.base_radius, space));
       p.platform_pair_gap = clamp(p.platform_pair_gap + randomNormal(random) * space.platformJitter,
         ...pairGapRange(p.platform_radius, space));
+      // Only a `both` run draws here, so fixed-direction runs keep their stream.
+      if (hornDirection === 'both' && random() < HORN_DIRECTION_FLIP_PROBABILITY) {
+        p.horn_direction = c3HornDirection(p) === 'inward' ? 'outward' : 'inward';
+      }
     }
     if (layout.topology === 'rectangular_paired') {
       p.base_aspect = clamp(p.base_aspect + randomNormal(random) * 0.05,
@@ -199,10 +239,10 @@ export function mutateLayout(source, { designSpace: space, servoRangeRad, servoR
   layout.hornLength += randomNormal(random) * space.mutationHorn;
   layout.rodLength += randomNormal(random) * space.mutationRod;
   layout.homeHeight += randomNormal(random) * space.mutationHeight;
-  return finalizeLayout(layout, { designSpace: space, servoRangeRad, servoRangeDeg });
+  return finalizeLayout(layout, { designSpace: space, servoRangeRad, servoRangeDeg, hornDirection });
 }
 
-export function crossoverLayouts(a, b, { designSpace: space, servoRangeRad, servoRangeDeg, random = Math.random }) {
+export function crossoverLayouts(a, b, { designSpace: space, servoRangeRad, servoRangeDeg, hornDirection, random = Math.random }) {
   validateTopology(a); validateTopology(b);
   if ((a.topology ?? 'free') !== (b.topology ?? 'free')) {
     throw new Error('Cannot cross layouts with different topologies.');
@@ -224,12 +264,19 @@ export function crossoverLayouts(a, b, { designSpace: space, servoRangeRad, serv
       layout.topologyParameters[field] = random() < 0.5
         ? a.topologyParameters[field] ?? fallback : b.topologyParameters[field] ?? fallback;
     }
+    // The child takes the parents' common horn direction; only parents that
+    // differ draw, so outward-only runs consume the stream they always have.
+    const [hornA, hornB] = [a.topologyParameters.horn_direction, b.topologyParameters.horn_direction];
+    if (layout.topology === 'c3_paired' && (hornA !== undefined || hornB !== undefined)) {
+      const [first, second] = [c3HornDirection(a.topologyParameters), c3HornDirection(b.topologyParameters)];
+      layout.topologyParameters.horn_direction = first === second || random() < 0.5 ? first : second;
+    }
     // A valid diagnostic parent may be outside the search bounds. Bound coupled
     // radius/gap choices before constructing the child, leaving both parents intact.
-    regenerateBoundedTopology(layout, space);
+    regenerateBoundedTopology(layout, space, hornDirection);
   }
   layout.hornLength = (a.hornLength + b.hornLength) / 2;
   layout.rodLength = (a.rodLength + b.rodLength) / 2;
   layout.homeHeight = random() < 0.5 ? a.homeHeight : b.homeHeight;
-  return finalizeLayout(layout, { designSpace: space, servoRangeRad, servoRangeDeg });
+  return finalizeLayout(layout, { designSpace: space, servoRangeRad, servoRangeDeg, hornDirection });
 }

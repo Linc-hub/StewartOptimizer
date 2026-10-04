@@ -1,6 +1,6 @@
 import { radToDeg } from '../math.js';
 import { topologyGeometry, PAIRED_HORN_TOPOLOGIES, DEFAULT_BETA_PAIR_OFFSET,
-  C3_BETA_OFFSET_LIMIT } from '../optimization/topology.js';
+  C3_BETA_OFFSET_LIMIT, C3_HORN_DIRECTIONS, c3HornDirection } from '../optimization/topology.js';
 import { createGeometryEditor, geometryMode, PARAMETER_FIELDS } from './geometry-editor.js';
 
 const ANGLE_FIELDS = new Set(['base_orientation', 'platform_orientation', 'beta_offset', 'beta_pair_offset']);
@@ -176,6 +176,26 @@ export function createGeometryControls({ document, container, controller }) {
     });
   }
 
+  // C3 horns point away from (outward) or toward (inward) their pair partner.
+  function hornDirection(parent, layout) {
+    const row = element(document, 'label', { className: 'sim-geometry-row' });
+    row.appendChild(element(document, 'span', { text: 'Horn direction' }));
+    const select = element(document, 'select', { id: 'sim-horn-direction' });
+    for (const value of C3_HORN_DIRECTIONS) {
+      const option = element(document, 'option', { text: value === 'inward' ? 'Inward (toward partner)' : 'Outward (away from partner)' });
+      option.value = value;
+      select.appendChild(option);
+    }
+    select.value = c3HornDirection(layout.topologyParameters);
+    select.addEventListener('change', event => {
+      markCommitted(event.target, synced);
+      perform({ type: 'hornDirection', value: event.target.value });
+    });
+    row.appendChild(select);
+    parent.appendChild(row);
+    controls.set('horn-direction', { number: select });
+  }
+
   function scalar(parent, layout, field) {
     addPair(parent, {
       key: field, label: LABELS[field], value: layout[field], min: 0.1,
@@ -250,6 +270,7 @@ export function createGeometryControls({ document, container, controller }) {
 
     if (mode === 'parametric') {
       for (const field of PARAMETER_FIELDS[layout.topology]) {
+        if (layout.topology === 'c3_paired' && field === 'beta_offset') hornDirection(container, layout);
         if (LABELS[field]) parameter(container, layout, field);
       }
     } else explicitAnchors(container, layout);
@@ -284,6 +305,7 @@ export function createGeometryControls({ document, container, controller }) {
         const value = layout.topologyParameters[field] ?? 0;
         values[field.replaceAll('_', '-')] = ANGLE_FIELDS.has(field) ? radToDeg(value) : value;
       }
+      if (layout.topology === 'c3_paired') values['horn-direction'] = c3HornDirection(layout.topologyParameters);
     } else {
       for (const plate of ['base', 'platform']) for (let leg = 0; leg < 6; leg++) {
         for (let axis = 0; axis < 3; axis++) {
