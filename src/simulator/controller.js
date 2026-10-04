@@ -2,6 +2,7 @@ import { evaluatePose, ensureLayout } from '../model/pose.js';
 import { OVERLAY_DEFAULTS, OVERLAY_NAMES, parseOverlays } from './scene.js';
 import { parseReachability, REACHABILITY_DEFAULTS, sweepReachability } from './reachability.js';
 import { parseLoadModel, poseLoads } from './loads.js';
+import { capabilityExtents } from './capability.js';
 import { staticState } from '../model/cycle.js';
 import { eulerRatesToAngular } from '../model/trajectory.js';
 
@@ -128,12 +129,30 @@ export function createSimulatorController({ onChange, schedule = nextFrame, eval
   let loadModel = null;
   let acceptedMotion = null;
   let loads = null;
+  // The capability box result (frozen and shared like the cloud) and the
+  // orientation it was found at; layout and option changes clear it.
+  let capability = null;
 
   function getState() {
     return { ...copy({ layout, source, options, requested, accepted, assessment, acceptedAssessment,
       requestSource, rejected: Boolean(assessment && !assessment.reachable), animation,
       markers, tracesEnabled, overlays, workspaceRanges, trace, reachability,
-      loadModel: loadModel?.input ?? null, loads }), reachabilityCloud };
+      loadModel: loadModel?.input ?? null, loads }), reachabilityCloud, capability };
+  }
+
+  // Finds the per-axis reach at the requested orientation when the capability
+  // box is on. It is about 70 evaluations, so it runs synchronously, and only
+  // again once the orientation differs from the last result's.
+  function refreshCapability() {
+    if (!layout || !overlays.capabilityBox) {
+      capability = null;
+      return;
+    }
+    const orientation = { rx: requested.rx, ry: requested.ry, rz: requested.rz };
+    const previous = capability?.orientation;
+    if (previous && previous.rx === orientation.rx && previous.ry === orientation.ry && previous.rz === orientation.rz) return;
+    const result = capabilityExtents({ layout, options, orientation, evaluate: evaluateReachability });
+    capability = Object.freeze({ ...result, orientation: Object.freeze(orientation) });
   }
 
   // Loads at the accepted pose: dynamic while the animation drives it, static
@@ -221,6 +240,7 @@ export function createSimulatorController({ onChange, schedule = nextFrame, eval
     }
     refreshLoads();
     refreshReachability();
+    refreshCapability();
     return notify();
   }
 
@@ -251,6 +271,7 @@ export function createSimulatorController({ onChange, schedule = nextFrame, eval
     trace = [];
     animation = { ...animation, playing: false, seconds: 0, pauseReason: null };
     stopSweep();
+    capability = null;
     return requestPose(HOME_POSE, { source: 'load' });
   }
 
@@ -269,6 +290,7 @@ export function createSimulatorController({ onChange, schedule = nextFrame, eval
     trace = [];
     animation = { ...animation, playing: false, seconds: 0, pauseReason: null };
     refreshReachability();
+    refreshCapability();
     return notify();
   }
 
@@ -287,6 +309,7 @@ export function createSimulatorController({ onChange, schedule = nextFrame, eval
       } else acceptedAssessment = checked;
     }
     stopSweep();
+    capability = null;
     return requestPose(requested, { source: 'settings' });
   }
 
@@ -320,6 +343,7 @@ export function createSimulatorController({ onChange, schedule = nextFrame, eval
       if (unknown.length) throw new RangeError(`Unknown overlay: ${unknown.join(', ')}.`);
       overlays = { ...overlays, ...known };
       refreshReachability();
+      refreshCapability();
       return notify();
     },
     // Patches the reachability cloud: `enabled` is the reachabilityCloud overlay

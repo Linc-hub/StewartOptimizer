@@ -5,6 +5,7 @@ import { buildSceneGeometry, OVERLAY_NAMES, SCENE_COLORS } from './scene.js';
 import { displayText, markCommitted, syncInput } from './geometry-controls.js';
 import { REACHABILITY_SAMPLE_COUNTS } from './reachability.js';
 import { hasLoad } from './loads.js';
+import { CAPABILITY_AXES, capabilityCoverage } from './capability.js';
 import { resolveInputFrame, stepRotation, stepTranslation, translationFromFrame, translationInFrame } from './input-frame.js';
 
 const RADIAN_AXES = new Set(['rx', 'ry', 'rz']);
@@ -73,6 +74,7 @@ export function createSimulatorView({ document, window, controller, isActive = (
   const reachSlice = document.getElementById('simReachabilitySlice');
   const reachSliceZ = document.getElementById('simReachabilitySliceZ');
   const reachStatus = document.getElementById('simReachabilityStatus');
+  const capabilityStatus = document.getElementById('simCapabilityStatus');
   const loadsInput = document.getElementById(overlayInputId('loads'));
   const loadsHint = document.getElementById('simLoadsHint');
   // The sample-count choices are the shared workspace sampling presets.
@@ -128,6 +130,7 @@ export function createSimulatorView({ document, window, controller, isActive = (
     loadsInput.disabled = !loadable;
     loadsHint.hidden = loadable;
     showReachability(state);
+    showCapability(state);
     if (renderer.available) renderer.render(state, camera);
   }
 
@@ -170,6 +173,33 @@ export function createSimulatorView({ document, window, controller, isActive = (
     reachStatus.classList.toggle('error', Boolean(reachabilityError || cloud?.error));
   }
   let reachabilityError = null;
+
+  // Per-axis reach in mm about home at the rotation it was found at, with any
+  // axis that does not cover its requirement range named.
+  function showCapability(state) {
+    const result = state.capability;
+    let message;
+    if (!state.overlays.capabilityBox) message = 'Capability box off.';
+    else if (!result) message = 'Load a layout to find its capability.';
+    else {
+      const { rx, ry, rz } = result.orientation;
+      const at = `at Rx ${fmt(radToDeg(rx))}, Ry ${fmt(radToDeg(ry))}, Rz ${fmt(radToDeg(rz))}°`;
+      if (!result.homeReachable) message = `Capability: home is not reachable ${at}.`;
+      else {
+        const coverage = capabilityCoverage(result.extents, state.workspaceRanges);
+        const reach = CAPABILITY_AXES.map(axis => `${axis.toUpperCase()} ${fmt(result.extents[axis].min)} to `
+          + `${fmt(result.extents[axis].max)}${result.limited[axis].max || result.limited[axis].min ? '+' : ''}`).join(', ');
+        const short = CAPABILITY_AXES.filter(axis => coverage[axis] === false).map(axis => {
+          const need = state.workspaceRanges[axis];
+          return `${axis.toUpperCase()} (needs ${fmt(need.min)} to ${fmt(need.max)})`;
+        });
+        message = `Capability ${at}: ${reach} mm along each axis from home.`
+          + (short.length ? ` Short of the requirement on ${short.join(', ')}.`
+            : Object.values(coverage).some(value => value) ? ' Covers the requirement ranges.' : '');
+      }
+    }
+    if (capabilityStatus.textContent !== message) capabilityStatus.textContent = message;
+  }
 
   const unsubscribe = controller.subscribe(show);
   if (!renderer.available) {
