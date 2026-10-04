@@ -297,8 +297,8 @@ where `solved` is the accepted assessment or `null`, so builders only draw data
 the evaluator already produced. The list order is the draw order: `groundGrid`,
 `base` (base polygon, servo direction stubs and base markers), `platform`
 (platform polygon), `legs` (horns, rods and their markers), `servoArcs`,
-`jointCones`, `workspaceBox`, `reachabilityCloud`, `conditioningEllipsoid`,
-`loads`, `requestedGhost`, `platformAxes`, `worldAxes` and `trace`. Markers and traces keep their own
+`jointCones`, `workspaceBox`, `capabilityBox`, `reachabilityCloud`,
+`conditioningEllipsoid`, `loads`, `requestedGhost`, `platformAxes`, `worldAxes` and `trace`. Markers and traces keep their own
 controls. Each point carries a pixel `size` (markers 6 or 7, reachability
 samples 3); the renderer draws each size in its own call, and a point without
 one at 7.
@@ -307,11 +307,11 @@ A builder with an `overlay` key is drawn only when that key is on in
 `state.overlays`. `OVERLAY_DEFAULTS` lists every toggleable overlay and its
 default; today these are **Ground grid** (`groundGrid`), **Servo arcs**
 (`servoArcs`), **Joint cones** (`jointCones`), **Workspace box**
-(`workspaceBox`), **Reachability cloud** (`reachabilityCloud`),
+(`workspaceBox`), **Capability box** (`capabilityBox`), **Reachability cloud** (`reachabilityCloud`),
 **Conditioning ellipsoid** (`conditioningEllipsoid`), **Loads** (`loads`),
 **Rejected pose ghost** (`requestedGhost`), **Platform axes** (`platformAxes`)
-and **World axes** (`worldAxes`), all on except the reachability cloud, the
-conditioning ellipsoid and the loads. With only the two
+and **World axes** (`worldAxes`), all on except the servo arcs, joint cones,
+workspace box, capability box, reachability cloud, conditioning ellipsoid and loads. With only the two
 axis overlays on, the scene matches the original single-function renderer line
 for line (a frozen fixture in `tests/fixtures/scene-geometry.json` checks this). The Simulate tab shows one checkbox per overlay in the
 **Overlays** group, with the id `simOverlay` plus the capitalised name (for
@@ -337,6 +337,30 @@ platform's extent, and it stays put as the pose moves. Rotation ranges are not
 drawn. Without all three translation ranges (for example a layout imported
 without a run or saved ranges) there is no box.
 
+**Capability box** (off by default) is the layout's answer to the workspace
+box: how far the platform origin actually reaches from home along each base X,
+Y and Z axis at the current requested rotation. `capabilityExtents` in
+`src/simulator/capability.js` walks each of the six half-axes outward through
+`evaluatePose`, starting at `CAPABILITY_FIRST_STEP_MM` (2 mm) and doubling the
+step until a pose fails or `CAPABILITY_LIMIT_MM` (250 mm) is reached, then
+bisects between the last accepted and first failing offsets until they are
+within `CAPABILITY_TOLERANCE_MM` (0.5 mm). That is about 70 evaluations, so the
+controller runs it synchronously and publishes the frozen result as
+`state.capability` (`homeReachable`, `extents` in mm about home, `limited`
+flags for a side that hit the probe limit, and the `orientation`). It probes
+again only when the requested rotation changes, the layout or limits change, or
+the overlay is switched on; a pure translation keeps the result. The builder
+draws the twelve edges of the `extents` box at home height. Edges along an axis
+are green (`reachable`) when that axis's reach covers its requirement range,
+yellow (`nearLimit`) when it falls short and light grey (`capability`) when
+the axis has no requirement range. A status line under the cloud's (`#simCapabilityStatus`)
+reads, for example, `Capability at Rx 0, Ry 0, Rz 0°: X -72.5 to 58, Y -64.5 to
+72.5, Z -38 to 31 mm along each axis from home. Short of the requirement on Z
+(needs -40 to 40).`; a side that hit the probe limit gets a `+`, and a rotation
+that fails even at home says so. The box is per-axis reach along the lines
+through home, not an envelope: its corners are not checked poses and reach past
+a gap along an axis is not counted. Use the reachability cloud to see the
+region between the axes.
 **Reachability cloud** (off by default, because every sample costs an
 evaluator call) shows where the platform origin can go at the current
 requested rotation. The controller's sweep (see Controller boundary) evaluates
