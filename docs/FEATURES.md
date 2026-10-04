@@ -363,7 +363,7 @@ Every request is evaluated by the same pose evaluator as the optimizer. An accep
 
 ### Animation, markers and traces
 
-Patterns: Wobble, Ping-pong, Rotation, Tilt, Helical, at a speed multiplier of 0.1 to 5. A rejected animation frame pauses playback with the failure reason; any manual request also pauses. Markers toggle anchor, horn-tip and platform points; Traces record up to 300 accepted platform-origin positions and can be cleared.
+Patterns: Wobble, Ping-pong, Rotation, Tilt, Helical and Requirements cycle, at a speed multiplier of 0.1 to 5. **Requirements cycle** plays the selected run's motion cycle (its `trajectory`, or the `cycle_mm` sinusoid on `cycle_axis` at `frequency_hz`), the same poses the optimizer's cycle evaluation sampled, so you can watch where along that motion a layout runs out of travel; a line under the pattern list describes the cycle loaded, or says there is none (a candidate from a run without a cycle, or an imported layout without one), and Play then explains why it cannot start. The cycle is saved in simulator JSON as `simulator.cycle`. A rejected animation frame pauses playback with the failure reason; any manual request also pauses. Markers toggle anchor, horn-tip and platform points; Traces record up to 300 accepted platform-origin positions and can be cleared.
 
 ### Rendering
 

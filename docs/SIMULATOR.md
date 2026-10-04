@@ -26,8 +26,23 @@ and after every change; its returned function unsubscribes. Geometry controls
 and diagnostics should use these calls rather than duplicating the evaluator.
 
 `setAnimation(pattern, playing, settings)` and `tick(deltaSeconds, settings)`
-support wobble, ping-pong, rotation, tilt, and helical motion. An invalid
+support wobble, ping-pong, rotation, tilt, helical and requirements-cycle motion. An invalid
 animation frame pauses playback and leaves its request and failure visible.
+The `cycle` pattern plays the controller's `cycle`: a `sinusoid-v1` trajectory in
+requirement units (`normalizeCycle`, mm and degrees, the `trajectory` form of
+[CYCLE_MODEL.md](./CYCLE_MODEL.md#trajectories)), set by
+`loadLayout(layout, { cycle })` or `setCycle(value)` and kept, like the ranges and
+load model, by a reload that leaves it out. `cycleFromRequirements(requirements)`
+builds it from a requirements object the way the optimizer does (a supplied
+`trajectory`, else the legacy `cycle_mm`/`frequency_hz`/`cycle_axis` sinusoid);
+a stationary or unparseable cycle is `null`. Each frame requests
+`trajectoryState(cycle, seconds).pose`, the same poses `evaluateCycle` samples,
+through the usual `requestPose` path, and `cycleState` scales its derivatives
+by the playback speed as `animationState` does, so the loads overlay sees the
+cycle's motion. Choosing the pattern without a cycle is allowed, but playing it
+throws `NO_CYCLE_MESSAGE` without changing anything, and `setCycle(null)` while it
+plays pauses it with that reason. Imported keyframe paths (the second half of
+upstream issue #136) are not part of this.
 Markers and bounded accepted-position traces (the most recent 300 accepted
 platform-origin positions) are controlled by `setMarkers`, `setTraces`, and
 `clearTrace`. `setOverlays(patch)` switches named scene overlays on or off;
@@ -287,6 +302,15 @@ the Optimize tab. Loading simulator JSON takes them from the block, else from
 the file's `run.effective_settings` the same way, else there are none and the
 overlay is unavailable; a malformed saved block rejects the file naming
 `simulator.loadModel`, while a run whose load does not parse only means no loads.
+
+`simulator.cycle` holds the motion the **Requirements cycle** pattern plays, as a
+`trajectory` object in requirement units, or `null` for none. Selecting an
+optimizer candidate takes it from the current run's
+`effective_settings.requirements`. Loading simulator JSON takes it from the block,
+else from the file's `run.effective_settings.requirements`, else there is none;
+a malformed saved block rejects the file naming `simulator.cycle`, while run
+requirements whose cycle does not parse only mean no cycle. A saved `cycle`
+pattern is restored as the selected pattern, paused.
 
 ## Scene builders and overlays
 
