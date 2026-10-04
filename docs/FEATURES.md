@@ -101,8 +101,8 @@ The **Optimization Parameters** panel is collapsed by default. Explicit edits to
 | Control | Options / domain | Default | Notes |
 | --- | --- | --- | --- |
 | Layout Topology | Circular (paired, C3), Circular (symmetric), Rectangular paired, Free | Circular (paired, C3) | An imported reference forces its own topology and the select follows it. |
-| Horn direction (C3) | Outward, Inward, Search both | Outward | Shown only for C3 paired; other topologies always run outward. Outward keeps seeded results unchanged; Inward and Search both start `beta_offset` anywhere within ±90°, and Search both also evolves the direction. A C3 reference's own direction overrides Outward/Inward. See [TOPOLOGIES.md](./TOPOLOGIES.md#c3-horn-direction-in-a-run). |
-| Leg pairing (C3) | Triangulated, Parallel, Search both | Triangulated | Shown only for C3 paired; other topologies always run triangulated. Triangulated legs form three triangles; parallel legs rise in couples to the platform pair above their base pair. Search both also evolves the pairing. A C3 reference's own pairing overrides Triangulated/Parallel. See [TOPOLOGIES.md](./TOPOLOGIES.md#c3-leg-pairing). |
+| Horn direction (C3) | Outward, Inward, Search both | Outward | Shown only for C3 paired; other topologies always run outward. Search both also evolves the direction and keeps both directions in the population (see [Searching several C3 configurations](./TOPOLOGIES.md#searching-several-c3-configurations)). A C3 reference's own direction overrides Outward/Inward. See [TOPOLOGIES.md](./TOPOLOGIES.md#c3-horn-direction-in-a-run). |
+| Leg pairing (C3) | Triangulated, Parallel, Search both | Triangulated | Shown only for C3 paired; other topologies always run triangulated. Triangulated legs form three triangles; parallel legs rise in couples to the platform pair above their base pair. Search both also evolves the pairing and keeps both pairings in the population. A C3 reference's own pairing overrides Triangulated/Parallel. See [TOPOLOGIES.md](./TOPOLOGIES.md#c3-leg-pairing). |
 | Home Height Min / Max (mm) | positive, max ≥ min | 50 / 450 | UI value wins over `home_height_bounds_mm`, which wins over the design-space default. |
 | Generations | integer ≥ 1 | 5 | |
 | Population Size | integer ≥ 4 | 12 | |
@@ -127,7 +127,7 @@ The optimizer is an NSGA-II loop implemented in `src/optimization/optimizer.js` 
 
 1. Build the initial population (random layouts, or the seeded composition when a reference is supplied).
 2. Evaluate every layout, then run fast non-dominated sorting and crowding-distance assignment.
-3. For each generation, create `populationSize` offspring by binary tournament selection (rank, then crowding, then coin flip), crossover, and probabilistic mutation. Evaluate them, merge with parents, re-sort, and keep `populationSize` survivors by front order and crowding distance.
+3. For each generation, create `populationSize` offspring by binary tournament selection (rank, then crowding, then coin flip), crossover, and probabilistic mutation. Evaluate them, merge with parents, re-sort, and keep `populationSize` survivors by front order and crowding distance. A run that searches several C3 configurations (Search both for horn direction or leg pairing) then guarantees each configuration an equal share of half the survivors, and starts with fresh layouts dealt evenly across them; the per-configuration summary is appended to the completion status and exported as `run.configuration_summary`.
 4. Emit a checkpoint after the initial population and after every completed generation.
 
 Dominance is constraint-first: `compareFeasibility` orders passing candidates ahead of diagnostic ones, and among diagnostics prefers fewer failed categories, then higher feasible coverage, then lower available torque and speed demand. Only candidates that tie on that ordering are compared by their objective vectors. An invalid or nonfinite objective is treated as negative infinity.
@@ -173,7 +173,7 @@ These values are fixed in `DEFAULT_DESIGN_SPACE` (`src/optimization/layout-opera
 | `homeHeightBounds` | [50, 450] mm | Clamped at finalization; overridden by UI or requirements |
 | `pairGapBounds` | [12, 45] mm | C3 pair gap; the ceiling per plate is also capped at 1.2 × that plate's radius |
 | `rectangularAspectBounds` | [0.6, 1.4] | Width/depth ratio |
-| `betaJitterRad` | 20° | Random `beta_offset` range for new parametric layouts (C3 Inward and Search both use ±90°); Free beta jitter |
+| `betaJitterRad` | 20° | Random `beta_offset` range for new parametric layouts (new C3 layouts use ±90°); Free beta jitter |
 | `anchorJitter`, `platformJitter` | 6 mm | Gaussian mutation scale for radii, gaps and Free anchor XY |
 | `baseZJitter` | 2 mm | Free base anchor Z range and mutation scale |
 | `mutationHorn`, `mutationRod`, `mutationHeight` | 4, 6, 15 mm | Gaussian mutation scales |

@@ -118,7 +118,7 @@
                     </select>
                 </label>
                 <label class="field" id="optHornDirectionField">
-                    <div class="field-header"><span>Horn direction (C3)</span><button type="button" class="info-button" data-info="Outward horns point away from the other servo of their pair; inward horns point toward it. Search both lets the optimizer try either direction on each candidate. Inward and Search both start the horn offset anywhere within ±90°, because inward horns near tangent usually hit their partner. A C3 reference layout keeps its own direction unless Search both is chosen." aria-label="More information"></button></div>
+                    <div class="field-header"><span>Horn direction (C3)</span><button type="button" class="info-button" data-info="Outward horns point away from the other servo of their pair; inward horns point toward it. Search both lets the optimizer try either direction on each candidate and keeps both in the population. New layouts start the horn offset anywhere within ±90°. A C3 reference layout keeps its own direction unless Search both is chosen." aria-label="More information"></button></div>
                     <select id="optHornDirection" aria-label="C3 horn direction">
                         <option value="outward" selected>Outward</option>
                         <option value="inward">Inward</option>
@@ -126,7 +126,7 @@
                     </select>
                 </label>
                 <label class="field" id="optLegPairingField">
-                    <div class="field-header"><span>Leg pairing (C3)</span><button type="button" class="info-button" data-info="Triangulated sends the two legs of each base pair to two different platform pairs, so the legs form three triangles (the classic hexapod). Parallel sends both legs of a base pair to the platform pair directly above it, so they rise as a near-parallel couple. Search both lets the optimizer try either pairing on each candidate. A C3 reference layout keeps its own pairing unless Search both is chosen." aria-label="More information"></button></div>
+                    <div class="field-header"><span>Leg pairing (C3)</span><button type="button" class="info-button" data-info="Triangulated sends the two legs of each base pair to two different platform pairs, so the legs form three triangles (the classic hexapod). Parallel sends both legs of a base pair to the platform pair directly above it, so they rise as a near-parallel couple. Search both lets the optimizer try either pairing on each candidate and keeps both in the population. A C3 reference layout keeps its own pairing unless Search both is chosen." aria-label="More information"></button></div>
                     <select id="optLegPairing" aria-label="C3 leg pairing">
                         <option value="triangulated" selected>Triangulated</option>
                         <option value="parallel">Parallel</option>

@@ -135,10 +135,11 @@ function clampPointRadius(anchor, bounds) {
   }
 }
 
-// Inward and `both` runs draw the C3 horn offset over the full +/-90 deg:
-// inward horns near tangent usually cross their partner across the pair gap.
-// Every extra draw comes after the existing ones and only in those modes, so an
-// outward (default) run consumes exactly the random stream it always has.
+// New C3 layouts draw the shared horn offset over its full +/-90 deg range in
+// every mode, so the initial population spans every mirrored horn angle (and
+// inward horns, which usually cross their partner near tangent, are not stuck
+// there). Other parametric topologies keep the betaJitterRad range. Extra C3
+// choice draws come after every older draw and only in modes that need them.
 function randomParameters(topology, space, random, modes = {}) {
   const radiusBounds = bounds => topology === 'c3_paired'
     ? [Math.max(bounds[0], space.pairGapBounds[0] / 1.2), bounds[1]] : bounds;
@@ -148,7 +149,7 @@ function randomParameters(topology, space, random, modes = {}) {
     base_orientation: randomInRange([-Math.PI, Math.PI], random),
   };
   if (topology !== 'c3_paired') p.platform_orientation = randomInRange([-Math.PI, Math.PI], random);
-  const betaRange = topology === 'c3_paired' && (modes.hornDirection ?? DEFAULT_HORN_DIRECTION_MODE) !== 'outward' ? C3_BETA_OFFSET_LIMIT : space.betaJitterRad;
+  const betaRange = topology === 'c3_paired' ? C3_BETA_OFFSET_LIMIT : space.betaJitterRad;
   p.beta_offset = randomInRange([-betaRange, betaRange], random);
   if (PAIRED_HORN_TOPOLOGIES.includes(topology)) p.beta_pair_offset = DEFAULT_BETA_PAIR_OFFSET;
   if (topology === 'c3_paired') {

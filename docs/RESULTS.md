@@ -103,6 +103,8 @@ Servo-capacity torque demand and rating use N m; speed demand and effective rati
 
 `run.effective_settings.linkClearanceMm` records the link clearance in mm. A run saved before link collision checks has no such field and replays with a clearance of 0, which never reports a collision, so it reproduces its original results.
 
+`run.effective_settings.hornDirection` and `legPairing` record the run's C3 choice modes (`outward`/`inward`/`both` and `triangulated`/`parallel`/`both`); runs saved without them replay as `outward` and `triangulated`. When a run searches more than one C3 configuration, `run.configuration_summary` lists one row per configuration: `configuration` (for example `inward/parallel`), `hornDirection`, `legPairing`, `retained` (layouts in the final population), `feasible` (of those, how many pass every constraint) and `bestCoverage` (the highest feasible coverage among them, percent, or `null`). Single-configuration runs omit the field. See [TOPOLOGIES.md](./TOPOLOGIES.md#searching-several-c3-configurations).
+
 An imported reference is reevaluated. Its old metadata is never trusted, and it can remain a selectable diagnostic even if outside search bounds or invalid at home. The downloaded `run.effective_settings.reference_layout` stores the original reference for replay. See [reference import](./IMPORT.md).
 
 The selected candidate can be downloaded as JSON. Candidates with valid solved home geometry can also be exported as a [Fusion construction script and coordinate CSV](./CAD.md), including diagnostic candidates whose other requirements fail. The archived simulator uses a separate legacy format; no general compatibility guarantee is made.

@@ -5,6 +5,7 @@ import { download } from './download.js';
 import { parseRequirements } from '../model/requirements.js';
 import { loadDefaultRequirements as loadSample } from '../io/sample-requirements.js';
 import { Optimizer as DefaultOptimizer } from '../optimization/optimizer.js';
+import { describeConfigurationSummary } from '../optimization/configurations.js';
 import { WorkerOptimizer } from './worker-optimizer.js';
 import { progressSnapshot } from './worker-protocol.js';
 import { createRunDashboard } from './run-dashboard.js';
@@ -279,7 +280,9 @@ export function createApp({ document, window, Optimizer = DefaultOptimizer, work
         const pareto = currentOptimizer.pareto?.length ? currentOptimizer.pareto : currentOptimizer.fitness;
         const best = currentOptimizer.getSelectedCandidate?.()
             ?? selectBest(currentOptimizer.pareto, currentOptimizer.fitness);
-        lastOutcome = { ...outcome, effective_settings: currentOptimizer.effectiveSettings?.() };
+        const configurations = currentOptimizer.configurationSummary?.() ?? null;
+        lastOutcome = { ...outcome, effective_settings: currentOptimizer.effectiveSettings?.(),
+            ...(configurations ? { configuration_summary: configurations } : {}) };
         resultsView.render(currentOptimizer.fitness, best?.layout.id);
         candidateOptions = currentOptimizer.fitness.map(item =>
             `<option value="${item.layout.id}">Candidate ${item.layout.id}</option>`).join('');
@@ -294,7 +297,7 @@ export function createApp({ document, window, Optimizer = DefaultOptimizer, work
         } else if (outcome.status === 'failed') {
             showStatus(`${outcome.error || 'Worker execution failed.'}${best ? ' Showing partial results from the last completed population.' : ''}`, true);
         } else {
-            showStatus(`Optimization complete. Feasible coverage: ${best?.coverage ?? 0}%. Pareto front contains ${currentOptimizer.pareto.length || pareto.length} layouts. Coverage applies only to sampled poses and modeled constraints.${runReferenceNote}`);
+            showStatus(`Optimization complete. Feasible coverage: ${best?.coverage ?? 0}%. Pareto front contains ${currentOptimizer.pareto.length || pareto.length} layouts. Coverage applies only to sampled poses and modeled constraints.${runReferenceNote}${configurations ? ` Configurations: ${describeConfigurationSummary(configurations)}.` : ''}`);
         }
     }
 
