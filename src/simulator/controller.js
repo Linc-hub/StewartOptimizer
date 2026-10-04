@@ -3,11 +3,12 @@ import { OVERLAY_DEFAULTS, OVERLAY_NAMES, parseOverlays } from './scene.js';
 import { parseReachability, REACHABILITY_DEFAULTS, sweepReachability } from './reachability.js';
 import { parseLoadModel, poseLoads } from './loads.js';
 import { staticState } from '../model/cycle.js';
-import { eulerRatesToAngular } from '../model/trajectory.js';
+import { eulerRatesToAngular, isStationary, normalizeTrajectory, trajectoryFromRequirements, trajectoryState }
+  from '../model/trajectory.js';
 
 export const POSE_AXES = Object.freeze(['x', 'y', 'z', 'rx', 'ry', 'rz']);
 export const HOME_POSE = Object.freeze({ x: 0, y: 0, z: 0, rx: 0, ry: 0, rz: 0 });
-export const ANIMATION_PATTERNS = Object.freeze(['none', 'wobble', 'pingpong', 'rotate', 'tilt', 'helical']);
+export const ANIMATION_PATTERNS = Object.freeze(['none', 'wobble', 'pingpong', 'rotate', 'tilt', 'helical', 'cycle']);
 
 const copy = value => value == null ? value : structuredClone(value);
 // The reachability sweep yields once per animation frame in a browser, else to a timer.
@@ -99,6 +100,39 @@ export function animationState(pattern, seconds, settings = {}, rate = 1) {
     omega, angularAcceleration: alpha };
 }
 
+// The motion cycle the `cycle` pattern plays: a normalized `sinusoid-v1`
+// trajectory (mm and degrees, as requirements write it). A stationary one
+// (no frequency or no amplitude) has nothing to play and reads as null.
+export function normalizeCycle(value, field = 'cycle') {
+  if (value == null) return null;
+  let trajectory;
+  try { trajectory = normalizeTrajectory(value); }
+  catch (error) { throw new (error.constructor)(`${field}: ${error.message}`); }
+  return isStationary(trajectory) ? null : trajectory;
+}
+
+// The cycle of a requirements object (a run's `effective_settings.requirements`),
+// the same trajectory the optimizer's cycle evaluation sampled, or null when
+// there is none or it does not parse.
+export function cycleFromRequirements(requirements) {
+  if (!requirements || typeof requirements !== 'object') return null;
+  try { return normalizeCycle(trajectoryFromRequirements(requirements).trajectory); }
+  catch { return null; }
+}
+
+// The cycle's motion state at pattern time `seconds`, with derivatives taken
+// against real time at playback `rate` as animationState does: velocities
+// scale with the rate and accelerations with its square.
+export function cycleState(trajectory, seconds, rate = 1) {
+  const state = trajectoryState(trajectory, seconds);
+  const scale = (vector, factor) => vector.map(value => value * factor);
+  return { pose: state.pose, velocity: scale(state.velocity, rate), acceleration: scale(state.acceleration, rate * rate),
+    omega: scale(state.omega, rate), angularAcceleration: scale(state.angularAcceleration, rate * rate) };
+}
+
+export const NO_CYCLE_MESSAGE = 'No requirements cycle to play: select a candidate from a run whose requirements '
+  + 'have a cycle (cycle_mm and frequency_hz, or a trajectory), or load simulator JSON that carries one.';
+
 // `schedule(callback)` runs a callback later; the reachability sweep awaits it
 // between chunks. `evaluateReachability` replaces `evaluatePose` for that sweep
 // in tests only; the cloud otherwise uses the shared evaluator like everything else.
@@ -128,12 +162,14 @@ export function createSimulatorController({ onChange, schedule = nextFrame, eval
   let loadModel = null;
   let acceptedMotion = null;
   let loads = null;
+  // The motion cycle the `cycle` pattern plays (normalizeCycle form), or null.
+  let cycle = null;
 
   function getState() {
     return { ...copy({ layout, source, options, requested, accepted, assessment, acceptedAssessment,
       requestSource, rejected: Boolean(assessment && !assessment.reachable), animation,
       markers, tracesEnabled, overlays, workspaceRanges, trace, reachability,
-      loadModel: loadModel?.input ?? null, loads }), reachabilityCloud };
+      loadModel: loadModel?.input ?? null, loads, cycle }), reachabilityCloud };
   }
 
   // Loads at the accepted pose: dynamic while the animation drives it, static
@@ -226,15 +262,18 @@ export function createSimulatorController({ onChange, schedule = nextFrame, eval
 
   // `workspaceRanges` (mm and radians, or null for none) replaces the drawn
   // requirement ranges and `loadModel` (requirement keys and units, or null for
-  // none) the payload and servo ratings; either left out is kept, so a geometry
-  // edit that reloads the layout keeps the box and the loads.
+  // none) the payload and servo ratings, and `cycle` (a trajectory in requirement
+  // units, or null for none) the motion the `cycle` pattern plays; any left out
+  // is kept, so a geometry edit that reloads the layout keeps the box, the loads
+  // and the cycle.
   function loadLayout(nextLayout, { source: nextSource = { kind: 'import' },
-    options: nextOptions = {}, workspaceRanges: nextRanges, loadModel: nextLoadModel } = {}) {
+    options: nextOptions = {}, workspaceRanges: nextRanges, loadModel: nextLoadModel, cycle: nextCycle } = {}) {
     ensureLayout(nextLayout);
     const nextLayoutCopy = copy(nextLayout);
     const nextOptionsCopy = copy(plainOptions(nextOptions));
     const nextRangesCopy = nextRanges === undefined ? workspaceRanges : normalizeWorkspaceRanges(nextRanges);
     const nextLoadModelCopy = nextLoadModel === undefined ? loadModel : parseLoadModel(nextLoadModel);
+    const nextCycleCopy = nextCycle === undefined ? cycle : normalizeCycle(nextCycle);
     // Validate the options against the home pose before touching any state, as
     // setOptions does, so an invalid load leaves the previous layout intact.
     evaluatePose(nextLayoutCopy, HOME_POSE, { ...nextOptionsCopy, recordLegData: true });
@@ -243,6 +282,7 @@ export function createSimulatorController({ onChange, schedule = nextFrame, eval
     options = nextOptionsCopy;
     workspaceRanges = nextRangesCopy;
     loadModel = nextLoadModelCopy;
+    cycle = nextCycleCopy;
     requested = { ...HOME_POSE };
     accepted = null;
     assessment = null;
@@ -260,6 +300,7 @@ export function createSimulatorController({ onChange, schedule = nextFrame, eval
     options = {};
     workspaceRanges = null;
     loadModel = null;
+    cycle = null;
     requested = { ...HOME_POSE };
     accepted = null;
     assessment = null;
@@ -294,6 +335,7 @@ export function createSimulatorController({ onChange, schedule = nextFrame, eval
     if (!ANIMATION_PATTERNS.includes(pattern)) throw new RangeError(`Unknown animation pattern: ${pattern}`);
     const speed = settings.speed ?? animation.speed;
     if (!Number.isFinite(speed) || speed <= 0) throw new RangeError('Animation speed must be positive.');
+    if (pattern === 'cycle' && playing && !cycle) throw new Error(NO_CYCLE_MESSAGE);
     animation = { ...animation, pattern, playing: Boolean(playing && pattern !== 'none'), speed,
       seconds: settings.reset ? 0 : animation.seconds, pauseReason: null };
     return notify();
@@ -302,8 +344,14 @@ export function createSimulatorController({ onChange, schedule = nextFrame, eval
   function tick(deltaSeconds, settings = {}) {
     if (!animation.playing || !layout) return getState();
     if (!Number.isFinite(deltaSeconds) || deltaSeconds < 0) throw new RangeError('Animation step must be nonnegative.');
+    if (animation.pattern === 'cycle' && !cycle) {
+      animation.playing = false;
+      animation.pauseReason = NO_CYCLE_MESSAGE;
+      return notify();
+    }
     animation.seconds += Math.min(deltaSeconds, 0.1) * animation.speed;
-    const motion = animationState(animation.pattern, animation.seconds, settings, animation.speed);
+    const motion = animation.pattern === 'cycle' ? cycleState(cycle, animation.seconds, animation.speed)
+      : animationState(animation.pattern, animation.seconds, settings, animation.speed);
     return request(motion.pose, 'animation', motion);
   }
 
@@ -340,6 +388,15 @@ export function createSimulatorController({ onChange, schedule = nextFrame, eval
       workspaceRanges = normalizeWorkspaceRanges(ranges);
       stopSweep();
       refreshReachability();
+      return notify();
+    },
+    // Replaces the motion cycle (requirement units, or null for none); playing
+    // the cycle pattern without one pauses it.
+    setCycle(value) {
+      cycle = normalizeCycle(value);
+      if (!cycle && animation.pattern === 'cycle' && animation.playing) {
+        animation = { ...animation, playing: false, pauseReason: NO_CYCLE_MESSAGE };
+      }
       return notify();
     },
     clearTrace() { trace = []; return notify(); },

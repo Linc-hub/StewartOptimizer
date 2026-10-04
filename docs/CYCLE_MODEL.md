@@ -11,6 +11,8 @@ A cycle is a periodic trajectory about the home pose. Two inputs are accepted:
 
 `trajectoryId` is a canonical text identity, for example `sinusoid-v1:f=2Hz;z:15mm@0deg`, recorded in the result and in `run.effective_settings.cycleModel`. Zero frequency or all-zero amplitudes evaluate one stationary home pose (`sampling.status: "stationary"`).
 
+The Simulate tab's **Requirements cycle** animation pattern plays this trajectory with `trajectoryState`, the same poses the evaluation samples; see [SIMULATOR.md](./SIMULATOR.md#controller-boundary).
+
 ## Sampling and convergence
 
 `run.effective_settings.cycleSampling` selects the time schedule over one period [0, T):

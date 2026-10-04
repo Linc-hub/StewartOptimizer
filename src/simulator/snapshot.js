@@ -1,6 +1,7 @@
 import { degToRad, radToDeg } from '../math.js';
 import { evaluatePose } from '../model/pose.js';
-import { ANIMATION_PATTERNS, HOME_POSE, normalizePose, normalizeWorkspaceRanges } from './controller.js';
+import { ANIMATION_PATTERNS, cycleFromRequirements, HOME_POSE, normalizeCycle, normalizePose, normalizeWorkspaceRanges }
+  from './controller.js';
 import { parseReachability } from './reachability.js';
 import { loadModelFromSettings, parseLoadModel } from './loads.js';
 import { parseOverlays } from './scene.js';
@@ -49,6 +50,8 @@ export function workspaceRangesToJSON(ranges) {
 // ranges that do not parse there only mean no box, never a rejected file.
 // `fallbackSettings` (the source run's `effective_settings`) likewise supply the
 // load model when the block carries none; one that does not parse means no loads.
+// They supply the motion cycle the same way: `simulator.cycle` (a trajectory in
+// requirement units) is validated, else the run's requirements cycle is used if it parses.
 export function parseSimulatorSnapshot(saved, layout, fallbackOptions, fallbackRanges = null, fallbackSettings = null) {
   const block = saved == null ? {} : plainObject(saved, 'simulator');
   let options;
@@ -67,7 +70,9 @@ export function parseSimulatorSnapshot(saved, layout, fallbackOptions, fallbackR
   const result = { options, requested: pose(block.requested, 'simulator.requested'),
     accepted: pose(block.accepted, 'simulator.accepted'), camera: null, animation: null,
     markers: null, tracesEnabled: null, overlays: null, reachability: null, pointerMode: null, inputFrame: null,
-    workspaceRanges: null, loadModel: null };
+    workspaceRanges: null, loadModel: null, cycle: null };
+  result.cycle = block.cycle != null ? normalizeCycle(block.cycle, 'simulator.cycle')
+    : cycleFromRequirements(fallbackSettings?.requirements);
   if (block.loadModel != null) {
     result.loadModel = parseLoadModel(block.loadModel, 'simulator.loadModel')?.input ?? null;
   } else {

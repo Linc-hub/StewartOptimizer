@@ -8,6 +8,19 @@ import { hasLoad } from './loads.js';
 import { resolveInputFrame, stepRotation, stepTranslation, translationFromFrame, translationInFrame } from './input-frame.js';
 
 const RADIAN_AXES = new Set(['rx', 'ry', 'rz']);
+
+// The Motion group's line about the Requirements cycle pattern: what it plays
+// (each axis's amplitude about home and any phase, at the cycle frequency), or
+// why there is nothing to play.
+export function describeCycleNote(cycle) {
+  if (!cycle) return 'Requirements cycle: none loaded. Select a candidate from a run whose requirements have a cycle, or load simulator JSON with one.';
+  const parts = cycle.components.filter(component => (component.amplitude_mm ?? component.amplitude_deg) > 0).map(component => {
+    const name = component.axis.length === 1 ? component.axis.toUpperCase() : `R${component.axis[1]}`;
+    const amplitude = 'amplitude_mm' in component ? `±${fmt(component.amplitude_mm)} mm` : `±${fmt(component.amplitude_deg)}°`;
+    return `${name} ${amplitude}${component.phase_deg ? ` (phase ${fmt(component.phase_deg)}°)` : ''}`;
+  });
+  return `Requirements cycle: ${parts.join(', ')} about home at ${fmt(cycle.frequency_hz)} Hz, the motion the optimizer scored.`;
+}
 const TRANSLATION_AXES = Object.freeze(['x', 'y', 'z']);
 // The CSS form of a scene colour. The pose labels take the canvas axis colours
 // through --axis-x/y/z, so the two cannot drift apart.
@@ -60,6 +73,7 @@ export function createSimulatorView({ document, window, controller, isActive = (
   const acceptedText = document.getElementById('simAcceptedPose');
   const pattern = document.getElementById('simPattern');
   const play = document.getElementById('simPlay');
+  const cycleNote = document.getElementById('simCycleNote');
   const pointerMode = document.getElementById('simPointerMode');
   const inputFrame = document.getElementById('simInputFrame');
   const frameOf = () => resolveInputFrame(inputFrame.value);
@@ -119,6 +133,8 @@ export function createSimulatorView({ document, window, controller, isActive = (
     syncPoseFields(state);
     play.textContent = state.animation.playing ? 'Pause' : 'Play';
     play.setAttribute('aria-pressed', String(state.animation.playing));
+    const note = describeCycleNote(state.cycle);
+    if (cycleNote.textContent !== note) cycleNote.textContent = note;
     // Snapshot loads and browser-save restores set these on the controller directly.
     markers.checked = state.markers;
     traces.checked = state.tracesEnabled;
