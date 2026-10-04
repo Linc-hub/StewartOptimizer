@@ -148,7 +148,20 @@
                         <option value="0.25">Up to 25%</option>
                         <option value="0.5">Up to 50%</option>
                     </select>
-                </label>                <label class="field">
+                </label>
+                <label class="field">
+                    <div class="field-header"><span>Stiffness Emphasis</span><button type="button" class="info-button" data-info="Adds an objective for stiffness along one platform axis: X, Y, Z translation or Rx, Ry, Rz rotation. It is the worst value over the home pose and every reachable sampled pose of a geometric proxy per unit servo stiffness, on the same scale as the Stiffness metric: how hard the platform resists a load along that axis while the other axes are free to give. Use it to see what a design optimised for one direction looks like, or with Leg Pairing set to Search both to compare how triangulated and parallel pairings hold that direction." aria-label="More information"></button></div>
+                    <select id="optStiffnessDirection" aria-label="Stiffness emphasis">
+                        <option value="" selected>Off</option>
+                        <option value="x">X translation</option>
+                        <option value="y">Y translation</option>
+                        <option value="z">Z translation</option>
+                        <option value="rx">Rx rotation</option>
+                        <option value="ry">Ry rotation</option>
+                        <option value="rz">Rz rotation</option>
+                    </select>
+                </label>
+                <label class="field">
                     <div class="field-header"><span>Home Height Min (mm)</span></div>
                     <input type="number" id="homeHeightMin" value="50" min="1" step="any">
                 </label>

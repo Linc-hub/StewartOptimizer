@@ -96,6 +96,16 @@ test('the compactness and bounds relaxation controls reach the optimizer', async
   assert.equal(captured.options.boundsRelaxation, 0.25);
 });
 
+test('the stiffness emphasis control reaches the optimizer', async () => {
+  let captured;
+  const element = await loadUI(stubOptimizer(value => { captured = value; }));
+  await element('runOptimization').handlers.click();
+  assert.equal(captured.options.stiffnessDirection, null);
+  element('optStiffnessDirection').value = 'rz';
+  await element('runOptimization').handlers.click();
+  assert.equal(captured.options.stiffnessDirection, 'rz');
+});
+
 test('Clear Requirements empties the inputs and results and disables copy and simulator download', async () => {
   let constructed = 0;
   const element = await loadUI(stubOptimizer(() => { constructed++; }));

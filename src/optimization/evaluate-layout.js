@@ -2,7 +2,8 @@ import { computeCycleDemand } from '../model/cycle.js';
 import { evaluatePose } from '../model/pose.js';
 import { resolveMounting } from '../model/mounting.js';
 import { validateLinkClearance } from '../model/collision.js';
-import { validateConditionLimit, NUMERICAL_RECIPROCAL_CUTOFF } from '../model/conditioning.js';
+import { directionalStiffness as directionalStiffnessAt, validateConditionLimit, validateStiffnessDirection,
+  NUMERICAL_RECIPROCAL_CUTOFF } from '../model/conditioning.js';
 import { evaluateServoCapacity, normalizeServoRatings } from '../model/servo-ratings.js';
 import { massPropertiesDescription, normalizeMassProperties } from '../model/mass-properties.js';
 import { payloadSupportSatisfied } from '../workspace/payload-support.js';
@@ -47,6 +48,7 @@ export async function evaluateLayout(layout, rawOptions) {
     lowerBallJointLimitDeg, upperBallJointLimitDeg, linkClearanceMm, sampling, random, onPoseWork } = options;
   const conditionLimit = validateConditionLimit(options.conditionLimit);
   validateLinkClearance(linkClearanceMm);
+  const stiffnessDirection = validateStiffnessDirection(options.stiffnessDirection ?? null);
   const mounting = resolveMounting(layout).mounting;
   layout.mounting = mounting;
   const massProperties = options.massProperties ?? normalizeMassProperties({ mass_kg: payload ?? 0 });
@@ -60,7 +62,7 @@ export async function evaluateLayout(layout, rawOptions) {
     signal, onProgress,
     payload, stroke, frequency, ballJointLimitDeg, lowerBallJointLimitDeg,
     upperBallJointLimitDeg, ballJointClamp, mounting, sampling, random, conditionLimit, linkClearanceMm,
-    payloadSupport,
+    payloadSupport, stiffnessDirection,
   });
 
   const coverage = Number.isFinite(workspaceResult.coverage) ? workspaceResult.coverage : 0;
@@ -116,9 +118,15 @@ export async function evaluateLayout(layout, rawOptions) {
   ), 0, 1);
   const fatigue = computeFatigue(cycle);
   const footprint = layoutFootprint(layout);
+  // Worst case over home and every reachable sampled pose; null when no direction is set.
+  const homeDirectional = stiffnessDirection && homeResult.reachable
+    ? directionalStiffnessAt(homeResult.conditioning.jacobianRows, stiffnessDirection) : null;
+  const directionalValues = [homeDirectional, stats.worstDirectionalStiffness].filter(Number.isFinite);
+  const directionalStiffness = directionalValues.length ? Math.min(...directionalValues) : null;
   const objectives = objectiveValues({ coverage, relaxedCoverage,
     conditioningQuality: availableQuality, dexterity, stiffness: stiffnessScore,
-    physicalStiffness, loadBalance, loadSharing, isotropy, limitMargin, torque, speedDemand, fatigue, footprint },
+    physicalStiffness, loadBalance, loadSharing, isotropy, limitMargin, torque, speedDemand, fatigue, footprint,
+    directionalStiffness },
   options.objectiveSet, options.objectiveVariant);
 
   const feasibility = {
@@ -166,6 +174,8 @@ export async function evaluateLayout(layout, rawOptions) {
       home: homeResult.conditioning,
       workspace: { worstReciprocal: stats.worstReciprocal ?? null,
         worstCondition: stats.worstCondition ?? null, counts: stats.conditioningCounts ?? null },
+      ...(stiffnessDirection ? { directional: { direction: stiffnessDirection, home: homeDirectional,
+        workspaceWorst: stats.worstDirectionalStiffness ?? null, value: directionalStiffness } } : {}),
       cycle: cycle.conditioning ?? null,
       limit: conditionLimit,
       numericalThreshold: NUMERICAL_RECIPROCAL_CUTOFF,
@@ -180,6 +190,7 @@ export async function evaluateLayout(layout, rawOptions) {
     limitMargin,
     fatigue,
     footprint,
+    directionalStiffness,
     condition,
     objectives,
     homePose: homeResult,

@@ -13,7 +13,7 @@ import { boundsExcursions, relaxedDesignSpace, RELAXATION_IMMIGRANT_SHARE, RELAX
 import { DEFAULT_TOPOLOGY, TOPOLOGIES, DEFAULT_BALL_JOINT_LIMIT_DEG, DEFAULT_LINK_CLEARANCE_MM } from '../contracts.js';
 import { normalizeSampling } from '../workspace/sampling.js';
 import { createRandom, normalizeSeed, RANDOM_ALGORITHM } from './random.js';
-import { validateConditionLimit } from '../model/conditioning.js';
+import { validateConditionLimit, validateStiffnessDirection } from '../model/conditioning.js';
 import { validateLinkClearance } from '../model/collision.js';
 import { importLayout } from '../io/layout-import.js';
 import { evaluatePose } from '../model/pose.js';
@@ -82,6 +82,7 @@ export class Optimizer {
     legPairing = DEFAULT_LEG_PAIRING_MODE,
     compactness = false,
     boundsRelaxation = 0,
+    stiffnessDirection = null,
     referenceLayout = null,
     homeHeightBounds,
     ballJointLimitDeg,
@@ -183,6 +184,7 @@ export class Optimizer {
     if (typeof compactness !== 'boolean') throw new TypeError('compactness must be true or false.');
     this.compactness = compactness;
     this.boundsRelaxation = validateBoundsRelaxation(boundsRelaxation);
+    this.stiffnessDirection = validateStiffnessDirection(stiffnessDirection);
     this.relaxationShare = 0;
     this.relaxationHistory = [];
 
@@ -201,7 +203,8 @@ export class Optimizer {
     this.stiffnessModel = normalizeStiffnessModel(requirements.stiffness_model);
     this.payloadSupport = normalizePayloadSupport(requirements.workspace_payload_support);
     this.objectiveVariant = { stiffnessMetric: this.stiffnessModel?.useAsObjective ? 'physicalStiffness' : 'stiffness',
-      ...(this.compactness ? { footprint: true } : {}) };
+      ...(this.compactness ? { footprint: true } : {}),
+      ...(this.stiffnessDirection ? { directionalStiffness: this.stiffnessDirection } : {}) };
     this.servoRangeRad = this.servoRangeDeg.map((deg) => degToRad(deg));
     this.referenceDiagnostics = null;
     if (this.referenceLayout) {
@@ -290,6 +293,7 @@ export class Optimizer {
       servoRatings: this.servoRatings, objectiveSet: this.objectiveSet,
       stiffnessModel: this.stiffnessModel,
       payloadSupport: this.payloadSupport, objectiveVariant: this.objectiveVariant,
+      stiffnessDirection: this.stiffnessDirection,
       payloadSupport: this.payloadSupport };
   }
 
@@ -440,6 +444,7 @@ export class Optimizer {
       legPairing: this.legPairing,
       compactness: this.compactness,
       boundsRelaxation: this.boundsRelaxation,
+      stiffnessDirection: this.stiffnessDirection,
       homeHeightBounds: this.designSpace.homeHeightBounds,
       ballJointLimitDeg: this.ballJointLimitDeg,
       lowerBallJointLimitDeg: this.lowerBallJointLimitDeg,

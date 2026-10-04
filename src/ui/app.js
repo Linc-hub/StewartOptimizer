@@ -371,6 +371,7 @@ export function createApp({ document, window, Optimizer = DefaultOptimizer, work
                 legPairing: (topologySelect.value || 'c3_paired') === 'c3_paired' ? legPairingSelect.value || 'triangulated' : 'triangulated',
                 compactness: document.getElementById('optCompactness')?.value === 'footprint',
                 boundsRelaxation: Number(document.getElementById('optBoundsRelaxation')?.value || 0),
+                stiffnessDirection: document.getElementById('optStiffnessDirection')?.value || null,
                 referenceLayout: referenceLayoutInput.value.trim() || null,
                 homeHeightBounds: readHomeHeightBounds(),
                 sampling,

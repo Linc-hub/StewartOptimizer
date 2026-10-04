@@ -1,4 +1,5 @@
 import { average, standardDeviation } from '../math.js';
+import { directionalStiffness } from '../model/conditioning.js';
 
 function runningMean() {
   let count = 0;
@@ -7,7 +8,10 @@ function runningMean() {
 }
 
 // Owns aggregation and reservoir sampling; it never schedules or evaluates poses.
-export function createWorkspaceStatistics({ totalPoses, sampleLimit = 200, violationSampleLimit = sampleLimit, random = Math.random }) {
+// `stiffnessDirection` (x, y, z, rx, ry or rz) also records the worst
+// directional stiffness proxy; it draws no random numbers.
+export function createWorkspaceStatistics({ totalPoses, sampleLimit = 200, violationSampleLimit = sampleLimit, random = Math.random,
+  stiffnessDirection = null }) {
   const normalizedSampleLimit = Math.min(200, Math.max(0, Math.floor(sampleLimit)));
   const normalizedViolationSampleLimit = Math.min(200, Math.max(0, Math.floor(violationSampleLimit)));
   const reachableSamples = [];
@@ -31,6 +35,7 @@ export function createWorkspaceStatistics({ totalPoses, sampleLimit = 200, viola
     engineeringLimit: 0, unavailable: 0 };
   let worstReciprocal = null;
   let worstCondition = null;
+  let worstDirectionalStiffness = null;
 
   const recordSample = (collection, limit, seenCount, sample) => {
     if (limit <= 0) return;
@@ -90,6 +95,11 @@ export function createWorkspaceStatistics({ totalPoses, sampleLimit = 200, viola
         stiffnessSamples.add(sigmaMin);
         worstReciprocal = worstReciprocal == null ? reciprocal : Math.min(worstReciprocal, reciprocal);
         worstCondition = worstCondition == null ? condition : Math.max(worstCondition, condition);
+        if (stiffnessDirection) {
+          const value = directionalStiffness(result.conditioning.jacobianRows, stiffnessDirection);
+          if (value != null) worstDirectionalStiffness = worstDirectionalStiffness == null
+            ? value : Math.min(worstDirectionalStiffness, value);
+        }
       }
 
       if (result.legDirections.length === 6) {
@@ -166,6 +176,7 @@ export function createWorkspaceStatistics({ totalPoses, sampleLimit = 200, viola
       conditioningCounts,
       worstReciprocal,
       worstCondition,
+      ...(stiffnessDirection ? { stiffnessDirection, worstDirectionalStiffness } : {}),
       violationCounts,
       violationRate,
     };

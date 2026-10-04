@@ -30,6 +30,7 @@ export const METRICS = Object.freeze({
   limitMargin: { json: 'limit_margin', direction: 'max', unit: 'ratio' },
   fatigue: { json: 'fatigue', direction: 'min', unit: 'rad/s' },
   footprint: { json: 'footprint', direction: 'min', unit: 'mm' },
+  directionalStiffness: { json: 'directional_stiffness', direction: 'max', unit: 'proxy' },
 });
 
 export const FAILURE_CATEGORIES = Object.freeze([

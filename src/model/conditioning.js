@@ -164,3 +164,48 @@ export function assessPoseConditioning(platformPoints, rodVectors, servoAngles,
     : assessment.engineeringFailure ? 'engineeringLimit' : null,
     jacobianRows: geometry.rows, centroid: geometry.centroid, radius: geometry.radius };
 }
+
+// Platform twist axes in Jacobian column order: translations (scaled by the
+// characteristic radius) then rotations.
+export const STIFFNESS_DIRECTIONS = Object.freeze(['x', 'y', 'z', 'rx', 'ry', 'rz']);
+
+export function validateStiffnessDirection(direction) {
+  if (direction == null) return null;
+  if (!STIFFNESS_DIRECTIONS.includes(direction)) {
+    throw new RangeError(`stiffnessDirection must be one of ${STIFFNESS_DIRECTIONS.join(', ')}.`);
+  }
+  return direction;
+}
+
+// Stiffness proxy along one twist axis, per unit servo stiffness. With every
+// servo equally stiff, K is proportional to J^T J, so the compliance is
+// C = J^-1 J^-T and a load along axis i deflects that axis by C[i][i] while the
+// other axes are free to comply. The proxy is 1 / sqrt(C[i][i]), the norm
+// reciprocal of row i of J^-1, which puts it on the same scale as sigmaMin:
+// sigmaMin <= value <= sigmaMax. Null for a missing or singular Jacobian.
+export function directionalStiffness(rows, direction) {
+  const axis = STIFFNESS_DIRECTIONS.indexOf(direction);
+  if (axis < 0 || !Array.isArray(rows) || rows.length !== 6
+      || rows.some(row => !Array.isArray(row) || row.length !== 6 || row.some(value => !Number.isFinite(value)))) return null;
+  // Gauss-Jordan with partial pivoting on [J | I].
+  const work = rows.map((row, i) => [...row, ...Array.from({ length: 6 }, (_, j) => (i === j ? 1 : 0))]);
+  const scale = Math.max(...rows.flat().map(Math.abs));
+  if (!(scale > 0)) return null;
+  for (let col = 0; col < 6; col++) {
+    let pivot = col;
+    for (let row = col + 1; row < 6; row++) {
+      if (Math.abs(work[row][col]) > Math.abs(work[pivot][col])) pivot = row;
+    }
+    if (Math.abs(work[pivot][col]) <= NUMERICAL_RECIPROCAL_CUTOFF * scale) return null;
+    [work[col], work[pivot]] = [work[pivot], work[col]];
+    const lead = work[col][col];
+    for (let k = 0; k < 12; k++) work[col][k] /= lead;
+    for (let row = 0; row < 6; row++) {
+      if (row === col || work[row][col] === 0) continue;
+      const factor = work[row][col];
+      for (let k = 0; k < 12; k++) work[row][k] -= factor * work[col][k];
+    }
+  }
+  const compliance = work[axis].slice(6).reduce((sum, value) => sum + value * value, 0);
+  return compliance > 0 && Number.isFinite(compliance) ? 1 / Math.sqrt(compliance) : null;
+}
