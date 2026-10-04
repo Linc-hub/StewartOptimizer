@@ -23,21 +23,25 @@ function ring(radius, orientation) {
 // The classic triangulated hexapod. Base pair k sits on the axis
 // base_orientation + k * 120 deg, and its two legs part to the platform pairs
 // 60 deg either side, so neighbouring base pairs meet at each platform pair and
-// the six legs zig-zag into three triangles. The two servos of a pair are
-// mirror images: each horn starts tangent and points away from its partner,
-// toward its leg's lean (horn_direction outward, the default), or toward its
+// the six legs zig-zag into three triangles. With leg_pairing `parallel` the
+// platform pair sits on the base pair's own axis instead, so both legs of a
+// base pair rise to the same platform pair as a near-parallel couple. The two
+// servos of a pair are mirror images: each horn starts tangent and points away
+// from its partner (horn_direction outward, the default), or toward its
 // partner (inward), and beta_offset turns both by the same mirrored angle.
 function c3PairedGeometry(p) {
   const baseHalf = Math.asin(p.base_pair_gap / (2 * p.base_radius));
   const platformHalf = Math.asin(p.platform_pair_gap / (2 * p.platform_radius));
   const turn = c3HornDirection(p) === 'inward' ? -1 : 1;
+  const parallel = c3LegPairing(p) === 'parallel';
   const baseAnchors = [], platformAnchors = [], betaAngles = [];
   for (let i = 0; i < 6; i++) {
     const side = i % 2 ? 1 : -1;
     const axis = p.base_orientation + Math.floor(i / 2) * 2 * Math.PI / 3;
     const baseAngle = axis + side * baseHalf;
     baseAnchors.push(point(p.base_radius, baseAngle));
-    platformAnchors.push(point(p.platform_radius, axis + side * (Math.PI / 3 - platformHalf)));
+    platformAnchors.push(point(p.platform_radius,
+      axis + side * (parallel ? platformHalf : Math.PI / 3 - platformHalf)));
     betaAngles.push(wrapAngle(baseAngle + turn * side * (Math.PI / 2 + p.beta_offset)));
   }
   return { baseAnchors, platformAnchors, betaAngles };
@@ -51,11 +55,18 @@ function c3PairedGeometry(p) {
 export const C3_BETA_OFFSET_LIMIT = Math.PI / 2;
 export const C3_HORN_DIRECTIONS = Object.freeze(['outward', 'inward']);
 export const DEFAULT_C3_HORN_DIRECTION = 'outward';
+export const C3_LEG_PAIRINGS = Object.freeze(['triangulated', 'parallel']);
+export const DEFAULT_C3_LEG_PAIRING = 'triangulated';
 
 // A C3 layout without horn_direction keeps the outward horns every earlier
 // layout had.
 export function c3HornDirection(parameters) {
   return parameters?.horn_direction ?? DEFAULT_C3_HORN_DIRECTION;
+}
+
+// A C3 layout without leg_pairing keeps the triangulated legs.
+export function c3LegPairing(parameters) {
+  return parameters?.leg_pairing ?? DEFAULT_C3_LEG_PAIRING;
 }
 
 function rectangle(radius, aspect, orientation) {
@@ -112,6 +123,9 @@ export function topologyGeometry(topology, parameters) {
     }
     if (parameters.horn_direction !== undefined && !C3_HORN_DIRECTIONS.includes(parameters.horn_direction)) {
       throw new Error(`topology_parameters.horn_direction must be one of ${C3_HORN_DIRECTIONS.join(', ')}.`);
+    }
+    if (parameters.leg_pairing !== undefined && !C3_LEG_PAIRINGS.includes(parameters.leg_pairing)) {
+      throw new Error(`topology_parameters.leg_pairing must be one of ${C3_LEG_PAIRINGS.join(', ')}.`);
     }
     return c3PairedGeometry(parameters);
   }

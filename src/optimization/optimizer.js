@@ -1,8 +1,8 @@
 import { validatePhysicalRequirements } from '../model/requirements.js';
 import { degToRad } from '../math.js';
-import { DEFAULT_DESIGN_SPACE, DEFAULT_HORN_DIRECTION_MODE, cloneLayout, createRandomLayout, finalizeLayout, mutateLayout,
-  crossoverLayouts, validateDesignSpace, validateHornDirectionMode } from './layout-operators.js';
-import { c3HornDirection } from './topology.js';
+import { DEFAULT_DESIGN_SPACE, DEFAULT_HORN_DIRECTION_MODE, DEFAULT_LEG_PAIRING_MODE, cloneLayout, createRandomLayout, finalizeLayout, mutateLayout,
+  crossoverLayouts, validateDesignSpace, validateHornDirectionMode, validateLegPairingMode } from './layout-operators.js';
+import { c3HornDirection, c3LegPairing } from './topology.js';
 import { dominates, fastNonDominatedSort, assignCrowdingDistance, tournamentSelect, selectFromFronts } from './nsga2.js';
 import { evaluateLayout, evaluateCycle, computeFatigue } from './evaluate-layout.js';
 import { estimateWork } from './budget.js';
@@ -76,6 +76,7 @@ export class Optimizer {
     designSpace = {},
     topology = DEFAULT_TOPOLOGY,
     hornDirection = DEFAULT_HORN_DIRECTION_MODE,
+    legPairing = DEFAULT_LEG_PAIRING_MODE,
     referenceLayout = null,
     homeHeightBounds,
     ballJointLimitDeg,
@@ -114,15 +115,19 @@ export class Optimizer {
     if (this.referenceLayout) topology = this.referenceLayout.topology;
     if (!TOPOLOGIES.includes(topology)) throw new Error(`topology must be one of ${TOPOLOGIES.join(', ')}.`);
     this.topology = topology;
-    // A C3 reference's horn direction wins over a fixed mode, as its topology
-    // does; `both` still searches both directions from it. A reference of
-    // another topology has no horn direction, so the setting does not apply.
-    if (this.referenceLayout?.topology === 'c3_paired' && hornDirection !== 'both') {
-      hornDirection = c3HornDirection(this.referenceLayout.topologyParameters);
-    } else if (this.referenceLayout && this.referenceLayout.topology !== 'c3_paired') {
+    // A C3 reference's horn direction and leg pairing win over fixed modes, as
+    // its topology does; `both` still searches both values from it. A reference
+    // of another topology has neither, so the settings do not apply.
+    const referenceTopology = this.referenceLayout?.topology;
+    if (referenceTopology === 'c3_paired') {
+      if (hornDirection !== 'both') hornDirection = c3HornDirection(this.referenceLayout.topologyParameters);
+      if (legPairing !== 'both') legPairing = c3LegPairing(this.referenceLayout.topologyParameters);
+    } else if (referenceTopology) {
       hornDirection = DEFAULT_HORN_DIRECTION_MODE;
+      legPairing = DEFAULT_LEG_PAIRING_MODE;
     }
     this.hornDirection = validateHornDirectionMode(hornDirection, this.topology);
+    this.legPairing = validateLegPairingMode(legPairing, this.topology);
     this.ballJointLimitDeg = ballJointLimitDeg ?? requirements.ball_joint_max_deg ?? DEFAULT_BALL_JOINT_LIMIT_DEG;
     this.lowerBallJointLimitDeg = lowerBallJointLimitDeg ?? this.ballJointLimitDeg;
     this.upperBallJointLimitDeg = upperBallJointLimitDeg ?? this.ballJointLimitDeg;
@@ -222,7 +227,8 @@ export class Optimizer {
   }
 
   layoutOptions() { return { designSpace: this.designSpace, servoRangeRad: this.servoRangeRad,
-    servoRangeDeg: this.servoRangeDeg, topology: this.topology, hornDirection: this.hornDirection, random: this.random }; }
+    servoRangeDeg: this.servoRangeDeg, topology: this.topology, hornDirection: this.hornDirection,
+      legPairing: this.legPairing, random: this.random }; }
   finalizeLayout(layout) { return finalizeLayout(layout, this.layoutOptions()); }
   mutateLayout(layout) { return mutateLayout(layout, this.layoutOptions()); }
   crossoverLayouts(a, b) { return crossoverLayouts(a, b, this.layoutOptions()); }
@@ -371,6 +377,7 @@ export class Optimizer {
       designSpace: this.designSpace,
       topology: this.topology,
       hornDirection: this.hornDirection,
+      legPairing: this.legPairing,
       homeHeightBounds: this.designSpace.homeHeightBounds,
       ballJointLimitDeg: this.ballJointLimitDeg,
       lowerBallJointLimitDeg: this.lowerBallJointLimitDeg,

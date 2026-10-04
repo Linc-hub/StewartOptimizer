@@ -1,6 +1,6 @@
 import { radToDeg } from '../math.js';
 import { topologyGeometry, PAIRED_HORN_TOPOLOGIES, DEFAULT_BETA_PAIR_OFFSET,
-  C3_BETA_OFFSET_LIMIT, C3_HORN_DIRECTIONS, c3HornDirection } from '../optimization/topology.js';
+  C3_BETA_OFFSET_LIMIT, C3_HORN_DIRECTIONS, c3HornDirection, C3_LEG_PAIRINGS, c3LegPairing } from '../optimization/topology.js';
 import { createGeometryEditor, geometryMode, PARAMETER_FIELDS } from './geometry-editor.js';
 
 const ANGLE_FIELDS = new Set(['base_orientation', 'platform_orientation', 'beta_offset', 'beta_pair_offset']);
@@ -196,6 +196,27 @@ export function createGeometryControls({ document, container, controller }) {
     controls.set('horn-direction', { number: select });
   }
 
+  // C3 legs form triangles (each base pair feeds two platform pairs) or rise
+  // in parallel couples (each base pair feeds the platform pair above it).
+  function legPairing(parent, layout) {
+    const row = element(document, 'label', { className: 'sim-geometry-row' });
+    row.appendChild(element(document, 'span', { text: 'Leg pairing' }));
+    const select = element(document, 'select', { id: 'sim-leg-pairing' });
+    for (const value of C3_LEG_PAIRINGS) {
+      const option = element(document, 'option', { text: value === 'parallel' ? 'Parallel (pair above pair)' : 'Triangulated (legs form triangles)' });
+      option.value = value;
+      select.appendChild(option);
+    }
+    select.value = c3LegPairing(layout.topologyParameters);
+    select.addEventListener('change', event => {
+      markCommitted(event.target, synced);
+      perform({ type: 'legPairing', value: event.target.value });
+    });
+    row.appendChild(select);
+    parent.appendChild(row);
+    controls.set('leg-pairing', { number: select });
+  }
+
   function scalar(parent, layout, field) {
     addPair(parent, {
       key: field, label: LABELS[field], value: layout[field], min: 0.1,
@@ -247,7 +268,7 @@ export function createGeometryControls({ document, container, controller }) {
         () => perform({ type: 'explicitMode' }));
     } else {
       const select = element(document, 'select', { id: 'sim-generate-topology' });
-      for (const [value, label] of [['c3_paired', 'C3 paired'], ['circular', 'Circular'],
+      for (const [value, label] of [['c3_paired', 'Circular (paired, C3)'], ['circular', 'Circular (symmetric)'],
         ['rectangular_paired', 'Rectangular paired']]) {
         const option = element(document, 'option', { text: label });
         option.value = value;
@@ -270,6 +291,7 @@ export function createGeometryControls({ document, container, controller }) {
 
     if (mode === 'parametric') {
       for (const field of PARAMETER_FIELDS[layout.topology]) {
+        if (layout.topology === 'c3_paired' && field === 'base_orientation') legPairing(container, layout);
         if (layout.topology === 'c3_paired' && field === 'beta_offset') hornDirection(container, layout);
         if (LABELS[field]) parameter(container, layout, field);
       }
@@ -305,7 +327,10 @@ export function createGeometryControls({ document, container, controller }) {
         const value = layout.topologyParameters[field] ?? 0;
         values[field.replaceAll('_', '-')] = ANGLE_FIELDS.has(field) ? radToDeg(value) : value;
       }
-      if (layout.topology === 'c3_paired') values['horn-direction'] = c3HornDirection(layout.topologyParameters);
+      if (layout.topology === 'c3_paired') {
+        values['horn-direction'] = c3HornDirection(layout.topologyParameters);
+        values['leg-pairing'] = c3LegPairing(layout.topologyParameters);
+      }
     } else {
       for (const plate of ['base', 'platform']) for (let leg = 0; leg < 6; leg++) {
         for (let axis = 0; axis < 3; axis++) {

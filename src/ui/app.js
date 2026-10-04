@@ -79,9 +79,13 @@ export function createApp({ document, window, Optimizer = DefaultOptimizer, work
     const linkClearanceInput = document.getElementById('linkClearance');
     const topologySelect = document.getElementById('optTopology');
     const hornDirectionSelect = document.getElementById('optHornDirection');
-    // Horn direction is a C3 parameter; other topologies hide it and run outward.
+    const legPairingSelect = document.getElementById('optLegPairing');
+    // Horn direction and leg pairing are C3 parameters; other topologies hide
+    // them and run with the defaults.
     const syncHornDirectionField = () => {
-        document.getElementById('optHornDirectionField').hidden = topologySelect.value !== 'c3_paired';
+        const c3 = topologySelect.value === 'c3_paired';
+        document.getElementById('optHornDirectionField').hidden = !c3;
+        document.getElementById('optLegPairingField').hidden = !c3;
     };
     topologySelect.addEventListener('change', syncHornDirectionField);
     syncHornDirectionField();
@@ -358,6 +362,7 @@ export function createApp({ document, window, Optimizer = DefaultOptimizer, work
                 ranges,
                 topology: topologySelect.value || 'c3_paired',
                 hornDirection: (topologySelect.value || 'c3_paired') === 'c3_paired' ? hornDirectionSelect.value || 'outward' : 'outward',
+                legPairing: (topologySelect.value || 'c3_paired') === 'c3_paired' ? legPairingSelect.value || 'triangulated' : 'triangulated',
                 referenceLayout: referenceLayoutInput.value.trim() || null,
                 homeHeightBounds: readHomeHeightBounds(),
                 sampling,
@@ -381,6 +386,9 @@ export function createApp({ document, window, Optimizer = DefaultOptimizer, work
             if (currentOptimizer.topology) topologySelect.value = currentOptimizer.topology;
             if (currentOptimizer.hornDirection && currentOptimizer.topology === 'c3_paired') {
                 hornDirectionSelect.value = currentOptimizer.hornDirection;
+            }
+            if (currentOptimizer.legPairing && currentOptimizer.topology === 'c3_paired') {
+                legPairingSelect.value = currentOptimizer.legPairing;
             }
             syncHornDirectionField();
 
