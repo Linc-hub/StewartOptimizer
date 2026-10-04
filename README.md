@@ -27,7 +27,7 @@ The grid preset is deliberately coarse. A 100% sampled coverage result does not 
 ## Implemented scope
 
 - Nested and flat requirements JSON with shared validation.
-- Circular, C3 paired, rectangular paired, and Free candidate generation with invariant-preserving crossover and mutation, independently bounded home height, non-dominated sorting, crowding distance and tournament selection.
+- Circular (symmetric), Circular (paired, C3) with triangulated or parallel legs and outward or inward horns, rectangular paired, and Free candidate generation with invariant-preserving crossover and mutation, independently bounded home height, non-dominated sorting, crowding distance and tournament selection.
 - Exact reference-layout import with validation, diagnostic retention, bounded variations and fresh candidates, and recalculated metrics.
 - Six-dimensional workspace sweeps and inverse kinematics with geometry, servo, rod-length, modeled ball-joint and link-collision checks (horn and rod centre lines between legs, with a configurable clearance).
 - Separate strict feasible coverage and optional soft ball-joint exploration; soft exploration never changes physical geometry or feasible coverage.

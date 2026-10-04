@@ -66,6 +66,23 @@ test('the C3 horn direction control shows only for C3 and reaches the optimizer'
   assert.equal(captured.options.hornDirection, 'outward');
 });
 
+test('the C3 leg pairing control shows only for C3 and reaches the optimizer', async () => {
+  let captured;
+  const element = await loadUI(stubOptimizer(value => { captured = value; }));
+  element('optTopology').value = 'c3_paired';
+  element('optTopology').handlers.change();
+  assert.equal(element('optLegPairingField').hidden, false);
+  element('optLegPairing').value = 'both';
+  await element('runOptimization').handlers.click();
+  assert.equal(captured.options.legPairing, 'both');
+  // Another topology hides the control and runs triangulated whatever it still shows.
+  element('optTopology').value = 'rectangular_paired';
+  element('optTopology').handlers.change();
+  assert.equal(element('optLegPairingField').hidden, true);
+  await element('runOptimization').handlers.click();
+  assert.equal(captured.options.legPairing, 'triangulated');
+});
+
 test('Clear Requirements empties the inputs and results and disables copy and simulator download', async () => {
   let constructed = 0;
   const element = await loadUI(stubOptimizer(() => { constructed++; }));

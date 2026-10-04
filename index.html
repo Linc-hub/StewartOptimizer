@@ -111,8 +111,8 @@
                 <label class="field">
                     <div class="field-header"><span>Layout Topology</span></div>
                     <select id="optTopology" aria-label="Layout topology">
-                        <option value="c3_paired" selected>C3 paired</option>
-                        <option value="circular">Circular</option>
+                        <option value="c3_paired" selected>Circular (paired, C3)</option>
+                        <option value="circular">Circular (symmetric)</option>
                         <option value="rectangular_paired">Rectangular paired</option>
                         <option value="free">Free</option>
                     </select>
@@ -122,6 +122,14 @@
                     <select id="optHornDirection" aria-label="C3 horn direction">
                         <option value="outward" selected>Outward</option>
                         <option value="inward">Inward</option>
+                        <option value="both">Search both</option>
+                    </select>
+                </label>
+                <label class="field" id="optLegPairingField">
+                    <div class="field-header"><span>Leg pairing (C3)</span><button type="button" class="info-button" data-info="Triangulated sends the two legs of each base pair to two different platform pairs, so the legs form three triangles (the classic hexapod). Parallel sends both legs of a base pair to the platform pair directly above it, so they rise as a near-parallel couple. Search both lets the optimizer try either pairing on each candidate. A C3 reference layout keeps its own pairing unless Search both is chosen." aria-label="More information"></button></div>
+                    <select id="optLegPairing" aria-label="C3 leg pairing">
+                        <option value="triangulated" selected>Triangulated</option>
+                        <option value="parallel">Parallel</option>
                         <option value="both">Search both</option>
                     </select>
                 </label>
