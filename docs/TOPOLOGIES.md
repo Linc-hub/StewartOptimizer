@@ -1,11 +1,11 @@
 # Layout topologies
 
-New searches default to **C3 paired**. Select Circular, C3 paired, Rectangular paired, or Free in the optimization controls, or pass `topology` to the headless `Optimizer` constructor. Internal anchor coordinates and lengths use millimeters; angles use radians.
+New searches default to **C3 paired**, labelled **Circular (paired, C3)** in the browser; circular is labelled **Circular (symmetric)**. Select a topology in the optimization controls, or pass `topology` to the headless `Optimizer` constructor. Internal anchor coordinates and lengths use millimeters; angles use radians.
 
 | Topology | Anchor invariant | Search parameters |
 | --- | --- | --- |
 | `circular` | Six equally spaced anchors on each centered, coplanar ring; alternating horn orientations. | `base_radius`, `platform_radius`, `base_orientation`, `platform_orientation`, `beta_offset`, `beta_pair_offset` |
-| `c3_paired` | The classic triangulated hexapod. Three base pairs repeated every 120°; the platform pairs sit midway between them, locked 60° from the base pairs. The two legs of each base pair go to the two neighbouring platform pairs, so the six legs form three triangles. The two servos of each pair are mirror images. Each pair's gap is a chord length. | Base/platform radii, `base_orientation`, `beta_offset` (within ±90°), `base_pair_gap`, `platform_pair_gap`, optional `horn_direction` (`outward` or `inward`) |
+| `c3_paired` | Three base pairs repeated every 120°. By default (`leg_pairing` `triangulated`) this is the classic triangulated hexapod: the platform pairs sit midway between the base pairs, locked 60° from them, and the two legs of each base pair go to the two neighbouring platform pairs, so the six legs form three triangles. With `parallel` each platform pair sits on its base pair's axis and both legs of a base pair rise to it. The two servos of each pair are mirror images. Each pair's gap is a chord length. | Base/platform radii, `base_orientation`, `beta_offset` (within ±90°), `base_pair_gap`, `platform_pair_gap`, optional `horn_direction` (`outward` or `inward`), optional `leg_pairing` (`triangulated` or `parallel`) |
 | `rectangular_paired` | Three rows of left/right paired anchors on each centered, coplanar plate, rotated together; alternating horn orientations. Rows are at negative, zero, and positive half-depth. | Circular fields plus `base_aspect`, `platform_aspect` (half-width / half-depth) |
 | `free` | Six independently positioned anchors and beta angles. Generated platform anchors stay in the platform plane (finalization sets their Z to 0, so an out-of-plane reference anchor is not inherited); generated base anchor Z varies within its configured jitter. | No invariant parameters (`{}`) |
 
@@ -22,6 +22,14 @@ The **Horn direction (C3)** control, or the headless `hornDirection` option, cho
 - **Both** draws each new layout's direction with equal odds and its offset over ±90°; crossover gives a child its parents' common direction, or either parent's with equal odds when they differ, and mutation flips the direction with probability 0.1 (`HORN_DIRECTION_FLIP_PROBABILITY`). Only Both runs and parents that differ consume extra random draws.
 
 A C3 reference layout's direction overrides Outward or Inward, as its topology overrides the topology control; Both still searches both directions from it. A reference of another topology runs outward. The run records `hornDirection` in `effective_settings` and replay restores it; a run saved without one replays as `outward`.
+
+### C3 leg pairing
+
+`leg_pairing` chooses where each C3 leg lands on the platform. `triangulated` (the default, and the meaning of a missing value) is the layout above: platform pair *k* sits 60° from base pair *k* and each base pair's legs part to the two neighbouring platform pairs. `parallel` puts platform pair *k* on base pair *k*'s own axis, so both legs of a base pair rise to the platform pair above it as a near-parallel couple (they converge or diverge as the two pair gaps differ). The base anchors, horn angles and pair gaps are the same in both; only the platform anchors move. The `platform_pair_gap` is still the chord between the two platform anchors of a pair.
+
+The **Leg pairing (C3)** control, or the headless `legPairing` option, works like horn direction: `triangulated` (default), `parallel` or `both`; other topologies accept only `triangulated`. Triangulated runs add no key and no random draws, so seeded runs are unchanged. Parallel runs set the key without drawing, so they use the same random stream as triangulated runs (the same radii, gaps, offsets and lengths with the platform pairs moved). Both runs draw each new layout's pairing with equal odds after the horn-direction draw, crossover inherits it as it does the horn direction, and mutation flips it with probability 0.1 (`LEG_PAIRING_FLIP_PROBABILITY`). A C3 reference's pairing overrides Triangulated or Parallel; a reference of another topology runs triangulated. The run records `legPairing` in `effective_settings`; a run saved without one replays as `triangulated`.
+
+The two choices are independent: searching both horn directions and both pairings explores all four combinations.
 
 `beta_pair_offset` is optional for compatibility: an omitted value means zero and reproduces the old horn directions exactly. Imported references retain their coordinates and directions, including singular legacy designs. Generated variations may evolve the offset; importing does not silently repair it. Crossover bounds coupled radii and pair gaps before constructing offspring, so an out-of-bounds diagnostic reference cannot create an invalid intermediate gap/radius combination.
 

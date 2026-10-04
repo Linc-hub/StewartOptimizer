@@ -127,7 +127,10 @@ Circular, C3 paired, and rectangular paired layouts start in parametric mode.
 Radius, C3 anchor pair gap, rectangular aspect, base/platform turn, and horn
 direction offset use the shared `topologyGeometry` generator. C3 has only a base
 turn, since its platform pairs are locked 60° from the base pairs, and its horn
-offset is limited to ±90°. A **Horn direction** select (Outward, the default, or
+offset is limited to ±90°. A **Leg pairing** select (Triangulated, the default, or Parallel) sits above the
+C3 base turn and applies the `{ type: 'legPairing', value }` edit, which stores
+`topology_parameters.leg_pairing` and moves only the platform anchors: parallel
+puts each platform pair on its base pair's axis. A **Horn direction** select (Outward, the default, or
 Inward) sits above the C3 horn offset; it applies the editor's
 `{ type: 'hornDirection', value }` edit, which stores
 `topology_parameters.horn_direction` and regenerates the layout. Outward horns
@@ -147,7 +150,8 @@ their original directions until explicitly edited.
 **Edit anchors explicitly** preserves the current anchors and beta angles
 exactly while switching topology metadata to `free`. Explicit mode offers each
 base/platform XYZ coordinate and each horn direction. **Generate selected
-topology** is the deliberate reverse mode switch: it replaces explicit anchors
+topology** (labelled Circular (paired, C3), Circular (symmetric) and Rectangular
+paired) is the deliberate reverse mode switch: it replaces explicit anchors
 with coordinates from the chosen shared generator. Changing unrelated lengths,
 height, or servo bounds never regenerates explicit anchors. Sliders and numeric
 fields show the same current value; invalid edits, including an empty or
