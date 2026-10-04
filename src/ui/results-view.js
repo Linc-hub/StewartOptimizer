@@ -2,7 +2,8 @@ import { METRICS } from '../contracts.js';
 import { failureCategories, isPassing, rankCandidates } from '../io/results.js';
 
 const AXES = ['torque', 'speedDemand', 'coverage', 'payloadCoverage', 'conditioningQuality', 'dexterity',
-  'stiffness', 'physicalStiffness', 'loadSharing', 'loadBalance', 'isotropy', 'limitMargin', 'fatigue', 'footprint'];
+  'stiffness', 'physicalStiffness', 'loadSharing', 'loadBalance', 'isotropy', 'limitMargin', 'fatigue', 'footprint',
+  'directionalStiffness'];
 const label = key => `${key.replace(/([A-Z])/g, ' $1')} (${METRICS[key].unit})`;
 const printable = value => Number.isFinite(value) ? Number(value).toPrecision(4) : 'unavailable';
 const escapeHtml = value => String(value).replace(/[&<>"']/g, char => ({

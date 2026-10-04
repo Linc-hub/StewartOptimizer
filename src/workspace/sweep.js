@@ -32,6 +32,7 @@ export async function computeWorkspace(layout, ranges = {}, options = {}) {
     onProgress,
     signal,
     payloadSupport = null,
+    stiffnessDirection = null,
   } = options;
 
   signal?.throwIfAborted();
@@ -44,7 +45,7 @@ export async function computeWorkspace(layout, ranges = {}, options = {}) {
   // normalizeSampling admits any safe-integer sequence start; fold it into the 32-bit seed range.
   const reservoirSeed = effectiveSampling.strategy === 'halton'
     ? ((effectiveSampling.sequenceStart - 1) % 0xffffffff) + 1 : null;
-  const statistics = createWorkspaceStatistics({ totalPoses, sampleLimit, violationSampleLimit,
+  const statistics = createWorkspaceStatistics({ totalPoses, sampleLimit, violationSampleLimit, stiffnessDirection,
     random: random ?? (reservoirSeed ? createRandom(reservoirSeed) : Math.random) });
 
   // Optional static holding check at every strictly feasible pose; each check is one extra work unit.
