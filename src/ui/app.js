@@ -3,6 +3,7 @@ import { importLayout, parseLayoutJSON } from '../io/layout-import.js';
 import { parseSimulatorSnapshot, parseWorkspaceRanges, workspaceRangesToJSON } from '../simulator/snapshot.js';
 import { download } from './download.js';
 import { parseRequirements } from '../model/requirements.js';
+import { cycleRangeWarnings, describeCycle } from '../model/cycle-checks.js';
 import { loadDefaultRequirements as loadSample } from '../io/sample-requirements.js';
 import { Optimizer as DefaultOptimizer } from '../optimization/optimizer.js';
 import { WorkerOptimizer } from './worker-optimizer.js';
@@ -128,10 +129,25 @@ export function createApp({ document, window, Optimizer = DefaultOptimizer, work
     const { populateRequirementsDefaults, readWorkspaceRanges, readHomeHeightBounds,
         readSamplingSettings, readCycleSampling, randomizeSeed } = createControls(document);
     const ratingControls = createServoRatingControls(document);
+    const cycleNote = document.getElementById('requirementsCycleNote');
+    // States what the motion cycle demands, and warns when it swings past the
+    // workspace ranges the sweep and its coverage measure.
+    function showCycleNote(requirements) {
+        if (!requirements) { cycleNote.textContent = ''; cycleNote.classList.remove('error'); return; }
+        const warnings = cycleRangeWarnings(requirements);
+        cycleNote.textContent = [describeCycle(requirements), ...warnings.map(warning => warning.message)].join(' ');
+        cycleNote.classList.toggle('error', warnings.length > 0);
+    }
     function populate(parsed, preserveEdits = false) {
         populateRequirementsDefaults(parsed, preserveEdits);
         ratingControls.populate(parsed.normalized, preserveEdits);
+        showCycleNote(parsed.normalized);
     }
+    // Edited JSON refreshes the note once it parses; invalid text keeps the last note.
+    requirementsInput.addEventListener('change', () => {
+        try { showCycleNote(requirementsInput.value.trim() ? parseRequirements(requirementsInput.value).normalized : null); }
+        catch { /* Run reports the parse error. */ }
+    });
     installTooltips(document, window);
     // Candidate options of the current results, without any imported-reference entry.
     let candidateOptions = '';
@@ -196,6 +212,7 @@ export function createApp({ document, window, Optimizer = DefaultOptimizer, work
 
     document.getElementById('clearRequirements').addEventListener('click', () => {
         requirementsInput.value = '';
+        showCycleNote(null);
         setResultOutput('');
         currentOptimizer = null;
         lastOutcome = null;
