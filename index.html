@@ -315,13 +315,14 @@
                     </div>
                     <div class="sim-controls">
                         <h2>Pose</h2>
-                        <p>Translations are millimetres; rotations are degrees. Arrow keys move X/Y, Page Up/Down moves Z, W/S and A/D tilt, and Q/E rotates about Z. Over the view, the mouse wheel zooms toward the cursor and Shift+drag pans.</p>
-                        <div class="sim-axis"><label for="simXInput">X</label><input id="simXSlider" type="range" min="-50" max="50" step="0.1" value="0"><input id="simXInput" type="number" step="any" value="0"></div>
-                        <div class="sim-axis"><label for="simYInput">Y</label><input id="simYSlider" type="range" min="-50" max="50" step="0.1" value="0"><input id="simYInput" type="number" step="any" value="0"></div>
-                        <div class="sim-axis"><label for="simZInput">Z</label><input id="simZSlider" type="range" min="-50" max="50" step="0.1" value="0"><input id="simZInput" type="number" step="any" value="0"></div>
-                        <div class="sim-axis"><label for="simRXInput">Rx</label><input id="simRXSlider" type="range" min="-30" max="30" step="0.1" value="0"><input id="simRXInput" type="number" step="any" value="0"></div>
-                        <div class="sim-axis"><label for="simRYInput">Ry</label><input id="simRYSlider" type="range" min="-30" max="30" step="0.1" value="0"><input id="simRYInput" type="number" step="any" value="0"></div>
-                        <div class="sim-axis"><label for="simRZInput">Rz</label><input id="simRZSlider" type="range" min="-30" max="30" step="0.1" value="0"><input id="simRZInput" type="number" step="any" value="0"></div>
+                        <p>Translations are millimetres; rotations are degrees. Arrow keys move X/Y, Page Up/Down moves Z, W/S and A/D tilt, and Q/E rotates about Z. Over the view, the mouse wheel zooms toward the cursor and Shift+drag pans. Labels share the colours of the axes drawn in the view.</p>
+                        <label class="field">Translate along<select id="simTranslationFrame"><option value="base" selected>Base axes</option><option value="platform">Platform axes</option></select></label>
+                        <div class="sim-axis"><label for="simXInput" class="axis-label axis-x">X</label><input id="simXSlider" type="range" min="-50" max="50" step="0.1" value="0"><input id="simXInput" type="number" step="any" value="0"></div>
+                        <div class="sim-axis"><label for="simYInput" class="axis-label axis-y">Y</label><input id="simYSlider" type="range" min="-50" max="50" step="0.1" value="0"><input id="simYInput" type="number" step="any" value="0"></div>
+                        <div class="sim-axis"><label for="simZInput" class="axis-label axis-z">Z</label><input id="simZSlider" type="range" min="-50" max="50" step="0.1" value="0"><input id="simZInput" type="number" step="any" value="0"></div>
+                        <div class="sim-axis"><label for="simRXInput" class="axis-label axis-x">Rx</label><input id="simRXSlider" type="range" min="-30" max="30" step="0.1" value="0"><input id="simRXInput" type="number" step="any" value="0"></div>
+                        <div class="sim-axis"><label for="simRYInput" class="axis-label axis-y">Ry</label><input id="simRYSlider" type="range" min="-30" max="30" step="0.1" value="0"><input id="simRYInput" type="number" step="any" value="0"></div>
+                        <div class="sim-axis"><label for="simRZInput" class="axis-label axis-z">Rz</label><input id="simRZSlider" type="range" min="-30" max="30" step="0.1" value="0"><input id="simRZInput" type="number" step="any" value="0"></div>
                         <button id="simResetPose">Reset pose</button>
                         <h2>Motion</h2>
                         <div class="grid result-controls">

@@ -13,7 +13,7 @@ test('a saved simulator block round-trips its known fields and drops unknown one
   requested: { x: 1, y: 2, z: 3, rx: 0.1, ry: 0.2, rz: 0.3 }, accepted: { z: 3 },
   camera: { yaw: 1, pitch: 0.5, distance: 400, target: [0, 0, 90], junk: 'x' },
   animation: { pattern: 'tilt', speed: 2, playing: true }, markers: false, tracesEnabled: true, pointerMode: 'platform',
-  trace: 'ignored', source: { kind: 'import' } };
+  translationFrame: 'platform', trace: 'ignored', source: { kind: 'import' } };
   const result = parse(saved);
   assert.deepEqual(Object.keys(result.options).sort(), SIMULATOR_OPTION_KEYS.filter(key => key !== 'extra').sort());
   assert.equal('extra' in result.options, false);
@@ -24,13 +24,15 @@ test('a saved simulator block round-trips its known fields and drops unknown one
   assert.equal(result.markers, false);
   assert.equal(result.tracesEnabled, true);
   assert.equal(result.pointerMode, 'platform');
+  assert.equal(result.translationFrame, 'platform');
   saved.options.servoRangeRad[0] = -9;
   assert.equal(result.options.servoRangeRad[0], -1, 'options were stored by reference');
   const empty = parse(undefined);
   assert.deepEqual(empty.options, fallback);
   assert.deepEqual([empty.requested, empty.accepted, empty.camera, empty.animation, empty.markers,
-    empty.tracesEnabled, empty.pointerMode], [null, null, null, null, null, null, null]);
+    empty.tracesEnabled, empty.pointerMode, empty.translationFrame], [null, null, null, null, null, null, null, null]);
   assert.deepEqual(parse({ animation: { pattern: 'none' }, pointerMode: '' }).animation, { pattern: 'wobble', speed: 1 });
+  assert.equal(parse({ translationFrame: '' }).translationFrame, null, 'an empty frame counts as not saved');
 });
 
 test('every simulator field is type-checked and the error names the field', () => {
@@ -66,6 +68,7 @@ test('every simulator field is type-checked and the error names the field', () =
     [{ markers: 'yes' }, /simulator.markers must be true or false/],
     [{ tracesEnabled: null }, /simulator.tracesEnabled must be true or false/],
     [{ pointerMode: 'fly' }, /simulator.pointerMode must be one of orbit, platform/],
+    [{ translationFrame: 'world' }, /simulator.translationFrame must be one of base, platform/],
   ];
   for (const [simulator, expected] of cases) {
     assert.throws(() => parse(simulator), expected, JSON.stringify(simulator));
