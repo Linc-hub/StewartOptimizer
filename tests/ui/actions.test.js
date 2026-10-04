@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Optimizer } from '../../src/optimization/optimizer.js';
@@ -64,6 +65,22 @@ test('the C3 horn direction control shows only for C3 and reaches the optimizer'
   assert.equal(element('optHornDirectionField').hidden, true);
   await element('runOptimization').handlers.click();
   assert.equal(captured.options.hornDirection, 'outward');
+});
+
+test('the requirements cycle note explains the cycle and warns when it leaves the workspace', async () => {
+  const element = await loadUI(stubOptimizer(() => {}));
+  const requirements = JSON.parse(readFileSync(new URL('../../examples/sample-requirements.json', import.meta.url), 'utf8'));
+  element('requirementsInput').value = JSON.stringify(requirements);
+  element('requirementsInput').handlers.change();
+  assert.match(element('requirementsCycleNote').textContent, /cycle_mm is peak-to-peak and centred on home\. Cycle at 2 Hz: Z 30 mm/);
+  requirements.payload.cycle_mm = 60;
+  element('requirementsInput').value = JSON.stringify(requirements);
+  element('requirementsInput').handlers.change();
+  assert.match(element('requirementsCycleNote').textContent, /Z cycle swings ±30 mm about home, beyond z_range_mm/);
+  // Text that does not parse yet keeps the last note.
+  element('requirementsInput').value = '{';
+  element('requirementsInput').handlers.change();
+  assert.match(element('requirementsCycleNote').textContent, /swings ±30 mm/);
 });
 
 test('Clear Requirements empties the inputs and results and disables copy and simulator download', async () => {

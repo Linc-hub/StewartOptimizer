@@ -21,7 +21,7 @@ Feature areas:
 
 | Feature | Where in the UI | Headless entry | Owning modules | Detail doc |
 | --- | --- | --- | --- | --- |
-| Requirements JSON (flat or nested) with validation | Requirements textarea, Load Sample, Clear | `parseRequirements(text)` | `src/model/requirements.js` | [REQUIREMENTS.md](./REQUIREMENTS.md) |
+| Requirements JSON (flat or nested) with validation, cycle note and cycle-vs-workspace warnings | Requirements textarea, Load Sample, Clear, cycle note | `parseRequirements(text)`, `describeCycle`, `cycleRangeWarnings` | `src/model/requirements.js`, `src/model/cycle-checks.js` | [REQUIREMENTS.md](./REQUIREMENTS.md) |
 | Rigid-body payload and 6-DOF trajectories | JSON only | `payload.trajectory`, mass fields | `src/model/trajectory.js`, `mass-properties.js` | [CYCLE_MODEL.md](./CYCLE_MODEL.md) |
 | Servo ratings, envelopes, thermal and actuator models | Servo ratings panel (peak, speed, continuous, policy, per-servo peak/speed); curves, durations and actuator via JSON | `servoRatings` option / requirements keys | `src/model/servo-ratings.js` | [CYCLE_MODEL.md](./CYCLE_MODEL.md#actuator-demand-and-servo-capacity) |
 | Layout topologies with symmetry-preserving evolution | Layout Topology select, Horn direction (C3) select | `topology`, `hornDirection`, `designSpace` | `src/optimization/topology.js`, `layout-operators.js` | [TOPOLOGIES.md](./TOPOLOGIES.md) |
@@ -47,7 +47,7 @@ Feature areas:
 
 ## 1. Requirements input
 
-The Requirements textarea accepts a JSON document that is either flat or grouped into `payload`, `workspace`, `rotations` and optional `constraints`; in the grouped form, constraint keys left at the top level are merged into `constraints`, and a key present in both places is an error. The bundled sample (`examples/sample-requirements.json`) loads automatically at startup and again from **Load Sample Requirements**; loading the sample resets every derived control (range rows, ball-joint limit, home-height bounds, servo rating fields). **Clear** empties the requirements and discards the current optimizer, results, simulator layout and dashboard.
+The Requirements textarea accepts a JSON document that is either flat or grouped into `payload`, `workspace`, `rotations` and optional `constraints`; in the grouped form, constraint keys left at the top level are merged into `constraints`, and a key present in both places is an error. The bundled sample (`examples/sample-requirements.json`) loads automatically at startup and again from **Load Sample Requirements**; loading the sample resets every derived control (range rows, ball-joint limit, home-height bounds, servo rating fields). **Clear** empties the requirements and discards the current optimizer, results, simulator layout and dashboard. A note under the textarea restates the motion cycle in plain terms (for the legacy cycle: `cycle_mm` is peak-to-peak and centred on home, so 30 mm on Z is ±15 mm) and, in the error colour, warns for each cycle axis that swings past its workspace range, since the sweep and its coverage do not include those poses and the cycle does not widen the workspace; it updates when requirements load, when the JSON is edited and parses, and on Run, and clears with **Clear**. See [REQUIREMENTS.md](./REQUIREMENTS.md#cycle-and-workspace-are-separate-demands).
 
 A collapsible **Requirements reference** panel inside the page repeats the field table from [REQUIREMENTS.md](./REQUIREMENTS.md). The two copies are maintained by hand.
 

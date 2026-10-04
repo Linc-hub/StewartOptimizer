@@ -28,7 +28,7 @@
                             <thead><tr><th scope="col">Field</th><th scope="col">Domain / meaning</th><th scope="col">Default</th></tr></thead>
                             <tbody>
                                 <tr><th scope="row"><code>mass_kg</code></th><td>Finite number ≥ 0; combined moving platform and payload mass, kg</td><td>Required</td></tr>
-                                <tr><th scope="row"><code>cycle_mm</code></th><td>Finite number ≥ 0; peak-to-peak translation, mm</td><td>Required unless <code>trajectory</code></td></tr>
+                                <tr><th scope="row"><code>cycle_mm</code></th><td>Finite number ≥ 0; peak-to-peak translation, mm, centred on home (it reaches half the value either side). It does not widen the workspace ranges.</td><td>Required unless <code>trajectory</code></td></tr>
                                 <tr><th scope="row"><code>frequency_hz</code></th><td>Finite number ≥ 0; zero means stationary</td><td>Required unless <code>trajectory</code></td></tr>
                                 <tr><th scope="row"><code>cycle_axis</code></th><td>x, y, or z, case-insensitive</td><td>Required unless <code>trajectory</code></td></tr>
                                 <tr><th scope="row"><code>trajectory</code></th><td>Optional payload field replacing the three cycle fields: <code>{ "frequency_hz": f, "components": [{ "axis": "x|y|z", "amplitude_mm": a, "phase_deg": p }, { "axis": "rx|ry|rz", "amplitude_deg": a }] }</code>; common-frequency sinusoid about home</td><td>Single-axis cycle</td></tr>
@@ -77,6 +77,7 @@
                     <button type="button" class="info-button" data-info="This JSON document defines the payload, workspace ranges, and actuator limits the optimizer must respect. Adjust it to match your real-world requirements." aria-label="More information"></button>
                 </div>
                 <textarea id="requirementsInput" spellcheck="false" aria-label="Requirements JSON"></textarea>
+                <p class="field-help" id="requirementsCycleNote" aria-live="polite"></p>
             </label>
             <div class="field">
                 <label class="field-header" for="referenceLayoutInput"><span>Reference Layout JSON (optional)</span></label>

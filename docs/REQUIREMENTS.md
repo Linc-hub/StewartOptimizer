@@ -5,7 +5,7 @@ Requirements may be flat or grouped into `payload`, `workspace`, `rotations`, an
 | Field | Domain / meaning | Default |
 | --- | --- | --- |
 | mass_kg | Finite number >= 0; combined moving platform and payload mass, kg | Required |
-| cycle_mm | Finite number >= 0; peak-to-peak translation, mm | Required unless `trajectory` |
+| cycle_mm | Finite number >= 0; peak-to-peak translation, mm, centred on home (it reaches `cycle_mm / 2` either side); it does not widen the workspace ranges | Required unless `trajectory` |
 | frequency_hz | Finite number >= 0; zero means stationary | Required unless `trajectory` |
 | cycle_axis | x, y or z, case-insensitive | Required unless `trajectory` |
 | trajectory | Optional payload field replacing the three cycle fields: `{ type, frequency_hz, components: [{ axis, amplitude_mm or amplitude_deg, phase_deg }] }`; `type` is optional and must be `sinusoid`, each axis may appear once, and `phase_deg` defaults to 0 | Single-axis cycle |
@@ -33,6 +33,10 @@ Requirements may be flat or grouped into `payload`, `workspace`, `rotations`, an
 | stiffness_model | Optional physical compliance inputs: servo torsional stiffness, one rod description, characteristic length, test wrenches, objective choice (physical stiffness replaces the proxy in the Full set unless `use_as_objective` is false); see [COMPLIANCE_MODEL.md](./COMPLIANCE_MODEL.md) | Omitted (physical stiffness unavailable) |
 
 Trajectory, mass-property and external-wrench conventions are defined in [CYCLE_MODEL.md](./CYCLE_MODEL.md). Supplying `trajectory` together with any legacy cycle field is rejected rather than silently choosing one.
+
+### Cycle and workspace are separate demands
+
+The workspace ranges are what the sweep samples and what feasible coverage measures. The cycle (legacy `cycle_mm` or `trajectory`) is a separate motion about home, checked on its own path against every modeled limit (see [CYCLE_MODEL.md](./CYCLE_MODEL.md)). Neither widens the other: a 40 mm `cycle_mm` on Z swings ±20 mm about home whatever `z_range_mm` says, and a wider `z_range_mm` does not lengthen the cycle. When a cycle axis swings past its range (for example ±25 mm against `z_range_mm` [-20, 40]), the browser warns under the requirements box, because coverage then says nothing about those cycle poses. `describeCycle` and `cycleRangeWarnings` in `src/model/cycle-checks.js` produce the note and the warnings.
 
 Ranges accept `[min, max]`, `{ "min": min, "max": max }`, or `{ "from": min, "to": max }`. Arrays must contain exactly two values. Equal bounds are allowed for a fixed length, stationary coordinate or locked servo. A zero payload removes the modeled external load; zero stroke or frequency evaluates a stationary cycle. Valid input need not describe a feasible design. Note that an imported [reference layout](./IMPORT.md) requires a servo range with max strictly greater than min.
 
