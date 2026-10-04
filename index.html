@@ -134,6 +134,21 @@
                     </select>
                 </label>
                 <label class="field">
+                    <div class="field-header"><span>Compactness</span><button type="button" class="info-button" data-info="Adds a footprint objective: the radius of the vertical cylinder about the platform axis that holds every horn's full reach and every platform anchor. The optimizer then trades size against the other objectives instead of ignoring it, and the footprint appears in the results table and chart axes. It needs a reasonably sized run (for example population 32, 16 generations) to show; very small runs keep too few candidates for an extra objective to matter." aria-label="More information"></button></div>
+                    <select id="optCompactness" aria-label="Compactness">
+                        <option value="off" selected>Off</option>
+                        <option value="footprint">Minimise footprint</option>
+                    </select>
+                </label>
+                <label class="field">
+                    <div class="field-header"><span>Relax geometry bounds</span><button type="button" class="info-button" data-info="Lets the optimizer widen the geometry bounds (base and platform radius, home height, horn and rod length, C3 pair gaps, including any set in the requirements) when it needs to. It starts at the given bounds; after each generation with no passing candidate it widens them by another quarter of the chosen share (each minimum times 1 minus the share, each maximum times 1 plus it) and adds a few fresh layouts drawn in the wider space. It never narrows again. Every result lists the bounds it went outside and by how much, so check them before building. Servo travel and joint limits are never relaxed." aria-label="More information"></button></div>
+                    <select id="optBoundsRelaxation" aria-label="Relax geometry bounds">
+                        <option value="0" selected>Off</option>
+                        <option value="0.1">Up to 10%</option>
+                        <option value="0.25">Up to 25%</option>
+                        <option value="0.5">Up to 50%</option>
+                    </select>
+                </label>                <label class="field">
                     <div class="field-header"><span>Home Height Min (mm)</span></div>
                     <input type="number" id="homeHeightMin" value="50" min="1" step="any">
                 </label>

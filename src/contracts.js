@@ -29,6 +29,7 @@ export const METRICS = Object.freeze({
   isotropy: { json: 'isotropy', direction: 'max', unit: 'ratio' },
   limitMargin: { json: 'limit_margin', direction: 'max', unit: 'ratio' },
   fatigue: { json: 'fatigue', direction: 'min', unit: 'rad/s' },
+  footprint: { json: 'footprint', direction: 'min', unit: 'mm' },
 });
 
 export const FAILURE_CATEGORIES = Object.freeze([

@@ -15,6 +15,7 @@ import { createResultsView } from './results-view.js';
 import { buildConstructionSkeleton, canExportCad, skeletonToCSV, skeletonToFusionScript } from '../io/cad.js';
 import { createServoRatingControls } from './servo-ratings-controls.js';
 import { createSimulatorController } from '../simulator/controller.js';
+import { describeRelaxation } from '../optimization/relaxation.js';
 import { createSimulatorView } from '../simulator/view.js';
 import { createGeometryControls } from '../simulator/geometry-controls.js';
 import { mountSimulatorDiagnostics } from '../simulator/diagnostics.js';
@@ -281,8 +282,10 @@ export function createApp({ document, window, Optimizer = DefaultOptimizer, work
         const best = currentOptimizer.getSelectedCandidate?.()
             ?? selectBest(currentOptimizer.pareto, currentOptimizer.fitness);
         const configurations = currentOptimizer.configurationSummary?.() ?? null;
+        const relaxation = currentOptimizer.relaxationSummary?.() ?? null;
         lastOutcome = { ...outcome, effective_settings: currentOptimizer.effectiveSettings?.(),
-            ...(configurations ? { configuration_summary: configurations } : {}) };
+            ...(configurations ? { configuration_summary: configurations } : {}),
+            ...(relaxation ? { bounds_relaxation: relaxation } : {}) };
         resultsView.render(currentOptimizer.fitness, best?.layout.id);
         candidateOptions = currentOptimizer.fitness.map(item =>
             `<option value="${item.layout.id}">Candidate ${item.layout.id}</option>`).join('');
@@ -297,7 +300,7 @@ export function createApp({ document, window, Optimizer = DefaultOptimizer, work
         } else if (outcome.status === 'failed') {
             showStatus(`${outcome.error || 'Worker execution failed.'}${best ? ' Showing partial results from the last completed population.' : ''}`, true);
         } else {
-            showStatus(`Optimization complete. Feasible coverage: ${best?.coverage ?? 0}%. Pareto front contains ${currentOptimizer.pareto.length || pareto.length} layouts. Coverage applies only to sampled poses and modeled constraints.${runReferenceNote}${configurations ? ` Configurations: ${describeConfigurationSummary(configurations)}.` : ''}`);
+            showStatus(`Optimization complete. Feasible coverage: ${best?.coverage ?? 0}%. Pareto front contains ${currentOptimizer.pareto.length || pareto.length} layouts. Coverage applies only to sampled poses and modeled constraints.${runReferenceNote}${configurations ? ` Configurations: ${describeConfigurationSummary(configurations)}.` : ''}${relaxation ? ` ${describeRelaxation(relaxation)}` : ''}`);
         }
     }
 
@@ -366,6 +369,8 @@ export function createApp({ document, window, Optimizer = DefaultOptimizer, work
                 topology: topologySelect.value || 'c3_paired',
                 hornDirection: (topologySelect.value || 'c3_paired') === 'c3_paired' ? hornDirectionSelect.value || 'outward' : 'outward',
                 legPairing: (topologySelect.value || 'c3_paired') === 'c3_paired' ? legPairingSelect.value || 'triangulated' : 'triangulated',
+                compactness: document.getElementById('optCompactness')?.value === 'footprint',
+                boundsRelaxation: Number(document.getElementById('optBoundsRelaxation')?.value || 0),
                 referenceLayout: referenceLayoutInput.value.trim() || null,
                 homeHeightBounds: readHomeHeightBounds(),
                 sampling,

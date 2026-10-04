@@ -83,6 +83,19 @@ test('the C3 leg pairing control shows only for C3 and reaches the optimizer', a
   assert.equal(captured.options.legPairing, 'triangulated');
 });
 
+test('the compactness and bounds relaxation controls reach the optimizer', async () => {
+  let captured;
+  const element = await loadUI(stubOptimizer(value => { captured = value; }));
+  await element('runOptimization').handlers.click();
+  assert.equal(captured.options.compactness, false);
+  assert.equal(captured.options.boundsRelaxation, 0);
+  element('optCompactness').value = 'footprint';
+  element('optBoundsRelaxation').value = '0.25';
+  await element('runOptimization').handlers.click();
+  assert.equal(captured.options.compactness, true);
+  assert.equal(captured.options.boundsRelaxation, 0.25);
+});
+
 test('Clear Requirements empties the inputs and results and disables copy and simulator download', async () => {
   let constructed = 0;
   const element = await loadUI(stubOptimizer(() => { constructed++; }));
