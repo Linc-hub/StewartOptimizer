@@ -77,6 +77,14 @@ export function createApp({ document, window, Optimizer = DefaultOptimizer, work
     const ballJointClampCheckbox = document.getElementById('ballJointClamp');
     const ballJointLimitInput = document.getElementById('ballJointLimit');
     const linkClearanceInput = document.getElementById('linkClearance');
+    const topologySelect = document.getElementById('optTopology');
+    const hornDirectionSelect = document.getElementById('optHornDirection');
+    // Horn direction is a C3 parameter; other topologies hide it and run outward.
+    const syncHornDirectionField = () => {
+        document.getElementById('optHornDirectionField').hidden = topologySelect.value !== 'c3_paired';
+    };
+    topologySelect.addEventListener('change', syncHornDirectionField);
+    syncHornDirectionField();
     let currentOptimizer = null;
     let lastOutcome = null;
     let simulatorRun = null;
@@ -348,7 +356,8 @@ export function createApp({ document, window, Optimizer = DefaultOptimizer, work
                 objectiveSet,
                 mutationRate,
                 ranges,
-                topology: document.getElementById('optTopology').value || 'c3_paired',
+                topology: topologySelect.value || 'c3_paired',
+                hornDirection: (topologySelect.value || 'c3_paired') === 'c3_paired' ? hornDirectionSelect.value || 'outward' : 'outward',
                 referenceLayout: referenceLayoutInput.value.trim() || null,
                 homeHeightBounds: readHomeHeightBounds(),
                 sampling,
@@ -369,7 +378,11 @@ export function createApp({ document, window, Optimizer = DefaultOptimizer, work
             // candidate list, simulator and dashboard on screen together.
             const work = optimizer.estimateWork();
             currentOptimizer = optimizer;
-            if (currentOptimizer.topology) document.getElementById('optTopology').value = currentOptimizer.topology;
+            if (currentOptimizer.topology) topologySelect.value = currentOptimizer.topology;
+            if (currentOptimizer.hornDirection && currentOptimizer.topology === 'c3_paired') {
+                hornDirectionSelect.value = currentOptimizer.hornDirection;
+            }
+            syncHornDirectionField();
 
             setResultOutput('');
             lastOutcome = null;
@@ -512,6 +525,7 @@ export function createApp({ document, window, Optimizer = DefaultOptimizer, work
             catch { /* Preserve unfinished requirements text and saved control values. */ }
         }
         applyLocalWorkspace(document, saved);
+        syncHornDirectionField();
         if (prepared) applySimulatorLoad(prepared, false);
         setRunning(false);
         showStatus(saved.simulator

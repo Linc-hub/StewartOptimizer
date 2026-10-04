@@ -127,7 +127,14 @@ Circular, C3 paired, and rectangular paired layouts start in parametric mode.
 Radius, C3 anchor pair gap, rectangular aspect, base/platform turn, and horn
 direction offset use the shared `topologyGeometry` generator. C3 has only a base
 turn, since its platform pairs are locked 60° from the base pairs, and its horn
-offset is limited to ±90° so the mirrored horns of a pair cannot cross. Turn and horn
+offset is limited to ±90°. A **Horn direction** select (Outward, the default, or
+Inward) sits above the C3 horn offset; it applies the editor's
+`{ type: 'hornDirection', value }` edit, which stores
+`topology_parameters.horn_direction` and regenerates the layout. Outward horns
+start tangent pointing away from their partner, Inward horns toward it, so the
+two directions with the ±90° offset cover every mirrored horn angle. Inward
+horns near tangent can cross their partner; the link-collision check reports
+that rather than the editor refusing it. Turn and horn
 direction controls display degrees but store radians. The generator keeps the
 selected topology's anchor and beta-angle invariants. Horn/rod length, home
 height, and servo range are separate scalar controls; the servo range displays

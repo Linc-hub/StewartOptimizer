@@ -117,6 +117,14 @@
                         <option value="free">Free</option>
                     </select>
                 </label>
+                <label class="field" id="optHornDirectionField">
+                    <div class="field-header"><span>Horn direction (C3)</span><button type="button" class="info-button" data-info="Outward horns point away from the other servo of their pair; inward horns point toward it. Search both lets the optimizer try either direction on each candidate. Inward and Search both start the horn offset anywhere within ±90°, because inward horns near tangent usually hit their partner. A C3 reference layout keeps its own direction unless Search both is chosen." aria-label="More information"></button></div>
+                    <select id="optHornDirection" aria-label="C3 horn direction">
+                        <option value="outward" selected>Outward</option>
+                        <option value="inward">Inward</option>
+                        <option value="both">Search both</option>
+                    </select>
+                </label>
                 <label class="field">
                     <div class="field-header"><span>Home Height Min (mm)</span></div>
                     <input type="number" id="homeHeightMin" value="50" min="1" step="any">

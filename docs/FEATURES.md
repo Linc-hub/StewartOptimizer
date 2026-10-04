@@ -24,7 +24,7 @@ Feature areas:
 | Requirements JSON (flat or nested) with validation | Requirements textarea, Load Sample, Clear | `parseRequirements(text)` | `src/model/requirements.js` | [REQUIREMENTS.md](./REQUIREMENTS.md) |
 | Rigid-body payload and 6-DOF trajectories | JSON only | `payload.trajectory`, mass fields | `src/model/trajectory.js`, `mass-properties.js` | [CYCLE_MODEL.md](./CYCLE_MODEL.md) |
 | Servo ratings, envelopes, thermal and actuator models | Servo ratings panel (peak, speed, continuous, policy, per-servo peak/speed); curves, durations and actuator via JSON | `servoRatings` option / requirements keys | `src/model/servo-ratings.js` | [CYCLE_MODEL.md](./CYCLE_MODEL.md#actuator-demand-and-servo-capacity) |
-| Layout topologies with symmetry-preserving evolution | Layout Topology select | `topology`, `designSpace` | `src/optimization/topology.js`, `layout-operators.js` | [TOPOLOGIES.md](./TOPOLOGIES.md) |
+| Layout topologies with symmetry-preserving evolution | Layout Topology select, Horn direction (C3) select | `topology`, `hornDirection`, `designSpace` | `src/optimization/topology.js`, `layout-operators.js` | [TOPOLOGIES.md](./TOPOLOGIES.md) |
 | NSGA-II multi-objective search, Compact/Full objective sets | Objective set, population, generations, mutation rate, seed | constructor options | `src/optimization/optimizer.js`, `nsga2.js`, `objectives.js` | [architecture.md](./architecture.md) |
 | Halton or Cartesian workspace sampling | Workspace sampling select, axis min/max/step | `sampling`, `ranges` | `src/workspace/sampling.js`, `sweep.js` | [RESULTS.md](./RESULTS.md) |
 | Strict and soft ball-joint policies, two-socket joint model | Ball Joint Limit, soft-constraints checkbox | `ballJointLimitDeg`, `lower/upperBallJointLimitDeg`, `ballJointClamp` | `src/model/pose.js`, `mounting.js` | [JOINT_MODEL.md](./JOINT_MODEL.md) |
@@ -101,6 +101,7 @@ The **Optimization Parameters** panel is collapsed by default. Explicit edits to
 | Control | Options / domain | Default | Notes |
 | --- | --- | --- | --- |
 | Layout Topology | C3 paired, Circular, Rectangular paired, Free | C3 paired | An imported reference forces its own topology and the select follows it. |
+| Horn direction (C3) | Outward, Inward, Search both | Outward | Shown only for C3 paired; other topologies always run outward. Outward keeps seeded results unchanged; Inward and Search both start `beta_offset` anywhere within ±90°, and Search both also evolves the direction. A C3 reference's own direction overrides Outward/Inward. See [TOPOLOGIES.md](./TOPOLOGIES.md#c3-horn-direction-in-a-run). |
 | Home Height Min / Max (mm) | positive, max ≥ min | 50 / 450 | UI value wins over `home_height_bounds_mm`, which wins over the design-space default. |
 | Generations | integer ≥ 1 | 5 | |
 | Population Size | integer ≥ 4 | 12 | |
@@ -152,7 +153,7 @@ A layout carries `baseAnchors`, `platformAnchors` (mm), `betaAngles` (rad), shar
 | Topology | Invariant | Parameters |
 | --- | --- | --- |
 | `circular` | Six equally spaced anchors per centered coplanar ring; alternating horn offsets | `base_radius`, `platform_radius`, `base_orientation`, `platform_orientation`, `beta_offset`, `beta_pair_offset` |
-| `c3_paired` (default) | Three base pairs every 120°, platform pairs locked 60° between them; each base pair's legs go to the two neighbouring platform pairs, forming three triangles; mirrored servos per pair; pair gap is a chord | `base_radius`, `platform_radius`, `base_orientation`, `beta_offset` (within ±90°), `base_pair_gap`, `platform_pair_gap` |
+| `c3_paired` (default) | Three base pairs every 120°, platform pairs locked 60° between them; each base pair's legs go to the two neighbouring platform pairs, forming three triangles; mirrored servos per pair; pair gap is a chord | `base_radius`, `platform_radius`, `base_orientation`, `beta_offset` (within ±90°), `base_pair_gap`, `platform_pair_gap`, optional `horn_direction` (`outward` default, or `inward`) |
 | `rectangular_paired` | Three rows of left/right pairs on a rotated rectangle; radius is the corner distance | circular fields plus `base_aspect`, `platform_aspect` |
 | `free` | None | `{}` |
 
@@ -171,7 +172,7 @@ These values are fixed in `DEFAULT_DESIGN_SPACE` (`src/optimization/layout-opera
 | `homeHeightBounds` | [50, 450] mm | Clamped at finalization; overridden by UI or requirements |
 | `pairGapBounds` | [12, 45] mm | C3 pair gap; the ceiling per plate is also capped at 1.2 × that plate's radius |
 | `rectangularAspectBounds` | [0.6, 1.4] | Width/depth ratio |
-| `betaJitterRad` | 20° | Random `beta_offset` range for new parametric layouts; Free beta jitter |
+| `betaJitterRad` | 20° | Random `beta_offset` range for new parametric layouts (C3 Inward and Search both use ±90°); Free beta jitter |
 | `anchorJitter`, `platformJitter` | 6 mm | Gaussian mutation scale for radii, gaps and Free anchor XY |
 | `baseZJitter` | 2 mm | Free base anchor Z range and mutation scale |
 | `mutationHorn`, `mutationRod`, `mutationHeight` | 4, 6, 15 mm | Gaussian mutation scales |
@@ -374,7 +375,7 @@ The **Overlays** group toggles optional scene layers. Ground grid, rejected pose
 
 ### Mechanical geometry controls
 
-The panel edits an independent copy of the loaded layout; the optimizer's candidate is never changed. Parametric layouts expose their topology parameters (radii, pair spacing, aspect ratios, plate turns, horn direction offset, alternating horn offset for Circular and Rectangular) with paired sliders and numeric fields; all layouts expose horn length, rod length, home height and servo minimum/maximum. **Edit anchors explicitly** switches to Free while preserving coordinates and exposes each anchor coordinate and horn direction; **Generate selected topology** replaces explicit anchors with a suggested parametric layout. **Reset geometry** restores the last externally loaded layout. Invalid edits, including an empty or non-numeric field (never read as 0), leave the last valid layout in place, restore the field and report a field-specific error. A field that has keyboard focus keeps its text while an animation plays, so geometry can be edited mid-animation; a rejected edit still restores the stored value.
+The panel edits an independent copy of the loaded layout; the optimizer's candidate is never changed. Parametric layouts expose their topology parameters (radii, pair spacing, aspect ratios, plate turns, horn direction offset, alternating horn offset for Circular and Rectangular, and a C3 **Horn direction** select, Outward by default or Inward) with paired sliders and numeric fields; all layouts expose horn length, rod length, home height and servo minimum/maximum. **Edit anchors explicitly** switches to Free while preserving coordinates and exposes each anchor coordinate and horn direction; **Generate selected topology** replaces explicit anchors with a suggested parametric layout. **Reset geometry** restores the last externally loaded layout. Invalid edits, including an empty or non-numeric field (never read as 0), leave the last valid layout in place, restore the field and report a field-specific error. A field that has keyboard focus keeps its text while an animation plays, so geometry can be edited mid-animation; a rejected edit still restores the stored value.
 
 ### Pose diagnostics
 
@@ -388,7 +389,7 @@ The diagnostics panel shows the requested and rendered accepted poses, editable 
 
 ## 9. Browser workspace save
 
-**Save in browser** stores, under the `localStorage` key `stewart-optimizer.workspace.v1`, the requirements and reference textareas, every optimization control (topology, home-height bounds, population, generations, objective set, mutation rate, workspace and cycle sampling, seed, ball-joint limit and soft checkbox, all shared and per-servo rating fields, every axis min/max/step) and, when a layout is loaded, the full simulator JSON. **Restore saved workspace** and an automatic restore on page load (skipped, with a status note, when an optimization is already running) apply those values, re-populate derived controls when the saved requirements parse, and reload the saved simulator layout without activating the tab. **Delete browser save** removes the entry. Optimization results are not saved and must be regenerated. Saves are validated for shape and version before use, and the saved simulator document (layout, options, poses, camera, animation, markers, traces, overlay toggles, workspace ranges, mouse mode, input frame) is validated before any input or layout changes, so a rejected save leaves the current inputs and loaded layout as they were.
+**Save in browser** stores, under the `localStorage` key `stewart-optimizer.workspace.v1`, the requirements and reference textareas, every optimization control (topology, C3 horn direction, home-height bounds, population, generations, objective set, mutation rate, workspace and cycle sampling, seed, ball-joint limit and soft checkbox, all shared and per-servo rating fields, every axis min/max/step) and, when a layout is loaded, the full simulator JSON. **Restore saved workspace** and an automatic restore on page load (skipped, with a status note, when an optimization is already running) apply those values, re-populate derived controls when the saved requirements parse, and reload the saved simulator layout without activating the tab. **Delete browser save** removes the entry. Optimization results are not saved and must be regenerated. Saves are validated for shape and version before use, and the saved simulator document (layout, options, poses, camera, animation, markers, traces, overlay toggles, workspace ranges, mouse mode, input frame) is validated before any input or layout changes, so a rejected save leaves the current inputs and loaded layout as they were.
 
 ## 10. Headless API and replay
 
@@ -404,9 +405,9 @@ optimizer.selectCandidate(id);               // change the selection
 optimizer.stop();                            // request cancellation
 ```
 
-Constructor options: `populationSize` (12), `generations` (5), `ranges`, `sampling` (`{ strategy: 'halton' }`), `cycleSampling`, `seed` (1), `mutationRate` (0.35), `objectiveSet` (`compact`), `designSpace`, `topology` (`c3_paired`), `referenceLayout`, `homeHeightBounds`, `ballJointLimitDeg` (45 when neither the option nor the requirements supply it), `lowerBallJointLimitDeg`, `upperBallJointLimitDeg`, `conditionLimit` (null), `linkClearanceMm` (6 when neither the option nor `link_clearance_mm` supplies it), `ballJointClamp` (false), `servoRatings`, `onProgress`, `onCheckpoint`.
+Constructor options: `populationSize` (12), `generations` (5), `ranges`, `sampling` (`{ strategy: 'halton' }`), `cycleSampling`, `seed` (1), `mutationRate` (0.35), `objectiveSet` (`compact`), `designSpace`, `topology` (`c3_paired`), `hornDirection` (`outward`; `inward` or `both` for C3 only), `referenceLayout`, `homeHeightBounds`, `ballJointLimitDeg` (45 when neither the option nor the requirements supply it), `lowerBallJointLimitDeg`, `upperBallJointLimitDeg`, `conditionLimit` (null), `linkClearanceMm` (6 when neither the option nor `link_clearance_mm` supplies it), `ballJointClamp` (false), `servoRatings`, `onProgress`, `onCheckpoint`.
 
-`Optimizer.fromReplay(downloadedJSON)` rebuilds an optimizer from `run.effective_settings`, restoring requirements, bounds, sampling, cycle sampling (fixed 64 for exports that predate adaptive sampling), seed, population, generations, mutation rate, design space, topology, limits, ratings, objective set (mapping older Full runs to `full-v1`) and the original reference. Exports without effective settings or with a different random algorithm are rejected.
+`Optimizer.fromReplay(downloadedJSON)` rebuilds an optimizer from `run.effective_settings`, restoring requirements, bounds, sampling, cycle sampling (fixed 64 for exports that predate adaptive sampling), seed, population, generations, mutation rate, design space, topology, C3 horn direction (`outward` for exports without one), limits, ratings, objective set (mapping older Full runs to `full-v1`) and the original reference. Exports without effective settings or with a different random algorithm are rejected.
 
 Root `math.js`, `workspace.js`, `cycle.js`, `requirements.js` and `optimizer.js` remain as compatibility shims; the root `Optimizer` adds a browser download on `exportBest()`.
 

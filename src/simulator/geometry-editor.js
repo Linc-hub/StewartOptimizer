@@ -1,7 +1,7 @@
 import { degToRad } from '../math.js';
 import { ensureLayout } from '../model/pose.js';
 import { resolveMounting } from '../model/mounting.js';
-import { topologyFields, topologyGeometry, validateTopology } from '../optimization/topology.js';
+import { C3_HORN_DIRECTIONS, topologyFields, topologyGeometry, validateTopology } from '../optimization/topology.js';
 import { TOPOLOGIES } from '../contracts.js';
 
 const copy = value => structuredClone(value);
@@ -51,6 +51,15 @@ export function editGeometry(source, edit) {
       if (!fields) throw new Error('Switch explicitly to a parametric topology before editing parameters.');
       if (!fields.includes(edit.field)) throw new RangeError(`${edit.field} is not a ${layout.topology} parameter.`);
       layout.topologyParameters[edit.field] = finite(edit.value, edit.field);
+      regenerate(layout);
+      break;
+    }
+    case 'hornDirection': {
+      if (layout.topology !== 'c3_paired') throw new RangeError('Horn direction is a c3_paired parameter.');
+      if (!C3_HORN_DIRECTIONS.includes(edit.value)) {
+        throw new RangeError(`Horn direction must be one of ${C3_HORN_DIRECTIONS.join(', ')}.`);
+      }
+      layout.topologyParameters.horn_direction = edit.value;
       regenerate(layout);
       break;
     }

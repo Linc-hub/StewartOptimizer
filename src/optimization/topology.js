@@ -25,10 +25,12 @@ function ring(radius, orientation) {
 // 60 deg either side, so neighbouring base pairs meet at each platform pair and
 // the six legs zig-zag into three triangles. The two servos of a pair are
 // mirror images: each horn starts tangent and points away from its partner,
-// toward its leg's lean, and beta_offset turns both by the same mirrored angle.
+// toward its leg's lean (horn_direction outward, the default), or toward its
+// partner (inward), and beta_offset turns both by the same mirrored angle.
 function c3PairedGeometry(p) {
   const baseHalf = Math.asin(p.base_pair_gap / (2 * p.base_radius));
   const platformHalf = Math.asin(p.platform_pair_gap / (2 * p.platform_radius));
+  const turn = c3HornDirection(p) === 'inward' ? -1 : 1;
   const baseAnchors = [], platformAnchors = [], betaAngles = [];
   for (let i = 0; i < 6; i++) {
     const side = i % 2 ? 1 : -1;
@@ -36,14 +38,25 @@ function c3PairedGeometry(p) {
     const baseAngle = axis + side * baseHalf;
     baseAnchors.push(point(p.base_radius, baseAngle));
     platformAnchors.push(point(p.platform_radius, axis + side * (Math.PI / 3 - platformHalf)));
-    betaAngles.push(wrapAngle(baseAngle + side * (Math.PI / 2 + p.beta_offset)));
+    betaAngles.push(wrapAngle(baseAngle + turn * side * (Math.PI / 2 + p.beta_offset)));
   }
   return { baseAnchors, platformAnchors, betaAngles };
 }
 
-// Beyond +/-90 deg a C3 horn turns toward its partner, and the two horns of a
-// pair would sweep through each other across the narrow pair gap.
+// beta_offset is held within +/-90 deg. At the limits both directions point
+// the horn radially (+90 deg toward the plate centre, -90 deg away from it), so
+// the two horn directions together reach every angle once, continuously.
+// Inward horns can cross their partner across the pair gap; the link collision
+// check rejects such poses rather than the parametrisation.
 export const C3_BETA_OFFSET_LIMIT = Math.PI / 2;
+export const C3_HORN_DIRECTIONS = Object.freeze(['outward', 'inward']);
+export const DEFAULT_C3_HORN_DIRECTION = 'outward';
+
+// A C3 layout without horn_direction keeps the outward horns every earlier
+// layout had.
+export function c3HornDirection(parameters) {
+  return parameters?.horn_direction ?? DEFAULT_C3_HORN_DIRECTION;
+}
 
 function rectangle(radius, aspect, orientation) {
   const halfDepth = radius / Math.hypot(aspect, 1);
@@ -94,8 +107,11 @@ export function topologyGeometry(topology, parameters) {
       }
     }
     if (Math.abs(wrapAngle(parameters.beta_offset)) > C3_BETA_OFFSET_LIMIT + 1e-12) {
-      throw new Error('topology_parameters.beta_offset must be within +/-90 degrees for c3_paired, '
-        + 'so the two horns of a pair cannot cross.');
+      throw new Error('topology_parameters.beta_offset must be within +/-90 degrees for c3_paired; '
+        + 'use horn_direction to turn the horns toward their partner.');
+    }
+    if (parameters.horn_direction !== undefined && !C3_HORN_DIRECTIONS.includes(parameters.horn_direction)) {
+      throw new Error(`topology_parameters.horn_direction must be one of ${C3_HORN_DIRECTIONS.join(', ')}.`);
     }
     return c3PairedGeometry(parameters);
   }

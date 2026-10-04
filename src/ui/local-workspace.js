@@ -11,7 +11,7 @@ const INPUT_IDS = [
     [`servoTorque${index + 1}`, `servoSpeed${index + 1}`]).flat(),
 ];
 // Controls added after version 1 was saved; older saves keep the control's current value.
-const OPTIONAL_INPUT_IDS = ['optCycleSampling', 'servoContinuousTorqueRating', 'linkClearance'];
+const OPTIONAL_INPUT_IDS = ['optCycleSampling', 'servoContinuousTorqueRating', 'linkClearance', 'optHornDirection'];
 
 export function captureLocalWorkspace(document, simulator = null) {
   return {

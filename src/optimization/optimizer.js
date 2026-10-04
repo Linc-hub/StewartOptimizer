@@ -1,6 +1,8 @@
 import { validatePhysicalRequirements } from '../model/requirements.js';
 import { degToRad } from '../math.js';
-import { DEFAULT_DESIGN_SPACE, cloneLayout, createRandomLayout, finalizeLayout, mutateLayout, crossoverLayouts, validateDesignSpace } from './layout-operators.js';
+import { DEFAULT_DESIGN_SPACE, DEFAULT_HORN_DIRECTION_MODE, cloneLayout, createRandomLayout, finalizeLayout, mutateLayout,
+  crossoverLayouts, validateDesignSpace, validateHornDirectionMode } from './layout-operators.js';
+import { c3HornDirection } from './topology.js';
 import { dominates, fastNonDominatedSort, assignCrowdingDistance, tournamentSelect, selectFromFronts } from './nsga2.js';
 import { evaluateLayout, evaluateCycle, computeFatigue } from './evaluate-layout.js';
 import { estimateWork } from './budget.js';
@@ -73,6 +75,7 @@ export class Optimizer {
     objectiveSet = 'compact',
     designSpace = {},
     topology = DEFAULT_TOPOLOGY,
+    hornDirection = DEFAULT_HORN_DIRECTION_MODE,
     referenceLayout = null,
     homeHeightBounds,
     ballJointLimitDeg,
@@ -111,6 +114,15 @@ export class Optimizer {
     if (this.referenceLayout) topology = this.referenceLayout.topology;
     if (!TOPOLOGIES.includes(topology)) throw new Error(`topology must be one of ${TOPOLOGIES.join(', ')}.`);
     this.topology = topology;
+    // A C3 reference's horn direction wins over a fixed mode, as its topology
+    // does; `both` still searches both directions from it. A reference of
+    // another topology has no horn direction, so the setting does not apply.
+    if (this.referenceLayout?.topology === 'c3_paired' && hornDirection !== 'both') {
+      hornDirection = c3HornDirection(this.referenceLayout.topologyParameters);
+    } else if (this.referenceLayout && this.referenceLayout.topology !== 'c3_paired') {
+      hornDirection = DEFAULT_HORN_DIRECTION_MODE;
+    }
+    this.hornDirection = validateHornDirectionMode(hornDirection, this.topology);
     this.ballJointLimitDeg = ballJointLimitDeg ?? requirements.ball_joint_max_deg ?? DEFAULT_BALL_JOINT_LIMIT_DEG;
     this.lowerBallJointLimitDeg = lowerBallJointLimitDeg ?? this.ballJointLimitDeg;
     this.upperBallJointLimitDeg = upperBallJointLimitDeg ?? this.ballJointLimitDeg;
@@ -210,7 +222,7 @@ export class Optimizer {
   }
 
   layoutOptions() { return { designSpace: this.designSpace, servoRangeRad: this.servoRangeRad,
-    servoRangeDeg: this.servoRangeDeg, topology: this.topology, random: this.random }; }
+    servoRangeDeg: this.servoRangeDeg, topology: this.topology, hornDirection: this.hornDirection, random: this.random }; }
   finalizeLayout(layout) { return finalizeLayout(layout, this.layoutOptions()); }
   mutateLayout(layout) { return mutateLayout(layout, this.layoutOptions()); }
   crossoverLayouts(a, b) { return crossoverLayouts(a, b, this.layoutOptions()); }
@@ -358,6 +370,7 @@ export class Optimizer {
       mutationRate: this.mutationRate,
       designSpace: this.designSpace,
       topology: this.topology,
+      hornDirection: this.hornDirection,
       homeHeightBounds: this.designSpace.homeHeightBounds,
       ballJointLimitDeg: this.ballJointLimitDeg,
       lowerBallJointLimitDeg: this.lowerBallJointLimitDeg,
