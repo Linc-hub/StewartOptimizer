@@ -17,9 +17,11 @@ Before this layout, C3 used independent base and platform turns, sent both legs 
 
 The **Horn direction (C3)** control, or the headless `hornDirection` option, chooses which C3 horn directions a run generates: `outward` (default), `inward`, or `both`. Other topologies accept only `outward` and ignore it.
 
-- **Outward** generates exactly what earlier versions did: no `horn_direction` key, the same 20° `beta_offset` jitter and the same random stream, so seeded runs and the seed-stability fixture are unchanged. A layout that names a direction is held to `outward` by finalization.
-- **Inward** gives every generated layout `horn_direction: "inward"` and draws its initial `beta_offset` uniformly over the full ±90°, because near-tangent inward horns usually cross their partner.
-- **Both** draws each new layout's direction with equal odds and its offset over ±90°; crossover gives a child its parents' common direction, or either parent's with equal odds when they differ, and mutation flips the direction with probability 0.1 (`HORN_DIRECTION_FLIP_PROBABILITY`). Only Both runs and parents that differ consume extra random draws.
+Every new C3 layout draws its initial `beta_offset` uniformly over the full ±90°, whatever the direction, so the first population spans every mirrored horn angle (earlier versions drew outward offsets within the 20° `betaJitterRad`, which left most horn angles to slow mutation; seeded C3 runs therefore give different results from those versions, and the seed-stability fixture was regenerated for it).
+
+- **Outward** adds no `horn_direction` key and no extra random draws. A layout that names a direction is held to `outward` by finalization.
+- **Inward** gives every generated layout `horn_direction: "inward"`.
+- **Both** draws each new layout's direction with equal odds; crossover gives a child its parents' common direction, or either parent's with equal odds when they differ, and mutation flips the direction with probability 0.1 (`HORN_DIRECTION_FLIP_PROBABILITY`). Only Both runs and parents that differ consume extra random draws.
 
 A C3 reference layout's direction overrides Outward or Inward, as its topology overrides the topology control; Both still searches both directions from it. A reference of another topology runs outward. The run records `hornDirection` in `effective_settings` and replay restores it; a run saved without one replays as `outward`.
 
@@ -27,9 +29,17 @@ A C3 reference layout's direction overrides Outward or Inward, as its topology o
 
 `leg_pairing` chooses where each C3 leg lands on the platform. `triangulated` (the default, and the meaning of a missing value) is the layout above: platform pair *k* sits 60° from base pair *k* and each base pair's legs part to the two neighbouring platform pairs. `parallel` puts platform pair *k* on base pair *k*'s own axis, so both legs of a base pair rise to the platform pair above it as a near-parallel couple (they converge or diverge as the two pair gaps differ). The base anchors, horn angles and pair gaps are the same in both; only the platform anchors move. The `platform_pair_gap` is still the chord between the two platform anchors of a pair.
 
-The **Leg pairing (C3)** control, or the headless `legPairing` option, works like horn direction: `triangulated` (default), `parallel` or `both`; other topologies accept only `triangulated`. Triangulated runs add no key and no random draws, so seeded runs are unchanged. Parallel runs set the key without drawing, so they use the same random stream as triangulated runs (the same radii, gaps, offsets and lengths with the platform pairs moved). Both runs draw each new layout's pairing with equal odds after the horn-direction draw, crossover inherits it as it does the horn direction, and mutation flips it with probability 0.1 (`LEG_PAIRING_FLIP_PROBABILITY`). A C3 reference's pairing overrides Triangulated or Parallel; a reference of another topology runs triangulated. The run records `legPairing` in `effective_settings`; a run saved without one replays as `triangulated`.
+The **Leg pairing (C3)** control, or the headless `legPairing` option, works like horn direction: `triangulated` (default), `parallel` or `both`; other topologies accept only `triangulated`. Triangulated runs add no key and no random draws. Parallel runs set the key without drawing, so they use the same random stream as triangulated runs (the same radii, gaps, offsets and lengths with the platform pairs moved). Both runs draw each new layout's pairing with equal odds after the horn-direction draw, crossover inherits it as it does the horn direction, and mutation flips it with probability 0.1 (`LEG_PAIRING_FLIP_PROBABILITY`). A C3 reference's pairing overrides Triangulated or Parallel; a reference of another topology runs triangulated. The run records `legPairing` in `effective_settings`; a run saved without one replays as `triangulated`.
 
 The two choices are independent: searching both horn directions and both pairings explores all four combinations.
+
+### Searching several C3 configurations
+
+A *configuration* is one horn direction with one leg pairing (`outward/triangulated`, `inward/parallel`, ...). A run searches every combination its two modes allow: one by default, two when either mode is Both, four when both are (`searchedConfigurations` in `src/optimization/configurations.js`). With more than one:
+
+- **Even start.** Fresh random layouts are dealt out to the configurations in turn instead of drawing their choices, so the initial population (and a reference run's fresh share) holds an equal number of each.
+- **Kept alive.** NSGA-II survivor selection would otherwise let one configuration crowd the others out within a generation or two. `CONFIGURATION_SHARE` (0.5) of the population is reserved, split evenly: after normal selection, a configuration below `floor(populationSize × 0.5 / configurations)` (at least one) takes its best unselected members, in front-then-crowding order, each replacing the lowest-ranked survivor of a configuration above that quota. The reference is never replaced. The step is deterministic and draws no random numbers.
+- **Reported.** `optimizer.configurationSummary()` gives one row per configuration (layouts kept, how many pass every constraint, best feasible coverage). The browser appends it to the completion status and the results JSON, and an exported result carries it as `run.configuration_summary`. Single-configuration runs report nothing and export exactly what they did before.
 
 `beta_pair_offset` is optional for compatibility: an omitted value means zero and reproduces the old horn directions exactly. Imported references retain their coordinates and directions, including singular legacy designs. Generated variations may evolve the offset; importing does not silently repair it. Crossover bounds coupled radii and pair gaps before constructing offspring, so an out-of-bounds diagnostic reference cannot create an invalid intermediate gap/radius combination.
 
@@ -43,7 +53,7 @@ The default base radius remains 90–160 mm and platform radius 40–120 mm. The
 | --- | --- | --- |
 | `pairGapBounds` | [12, 45] mm | C3 pair gap. Each plate's ceiling is also capped at 1.2 × that plate's radius, and C3 radii are floored at the minimum gap / 1.2 so a gap always fits. |
 | `rectangularAspectBounds` | [0.6, 1.4] | Rectangular width/depth ratio |
-| `betaJitterRad` | 20° | Range of the random shared `beta_offset` for new parametric layouts (C3 Inward and Both runs draw it over ±90° instead); Gaussian scale for new Free beta angles |
+| `betaJitterRad` | 20° | Range of the random shared `beta_offset` for new parametric layouts (new C3 layouts draw it over ±90° instead); Gaussian scale for new Free beta angles |
 | `anchorJitter`, `platformJitter` | 6 mm | Gaussian mutation scale for base/platform radii and pair gaps, and for Free anchor X/Y |
 | `baseZJitter` | 2 mm | Free base-anchor Z range at generation, mutation scale and finalization clamp |
 | `mutationHorn`, `mutationRod`, `mutationHeight` | 4, 6, 15 mm | Gaussian mutation scales for the shared lengths and home height |
