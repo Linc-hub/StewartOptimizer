@@ -13,7 +13,7 @@ import { installTooltips } from './tooltips.js';
 import { createResultsView } from './results-view.js';
 import { buildConstructionSkeleton, canExportCad, skeletonToCSV, skeletonToFusionScript } from '../io/cad.js';
 import { createServoRatingControls } from './servo-ratings-controls.js';
-import { createSimulatorController } from '../simulator/controller.js';
+import { createSimulatorController, cycleFromRequirements } from '../simulator/controller.js';
 import { createSimulatorView } from '../simulator/view.js';
 import { createGeometryControls } from '../simulator/geometry-controls.js';
 import { mountSimulatorDiagnostics } from '../simulator/diagnostics.js';
@@ -162,6 +162,8 @@ export function createApp({ document, window, Optimizer = DefaultOptimizer, work
             workspaceRanges: parseWorkspaceRanges(settings?.bounds, 'effective_settings.bounds'),
             // The run's payload and servo ratings, for the loads overlay.
             loadModel: loadModelFromSettings(settings),
+            // The run's motion cycle, for the Requirements cycle pattern.
+            cycle: cycleFromRequirements(settings?.requirements),
         });
         // As in loadSimulatorLayout: only after the validating load.
         simulatorRun = lastOutcome;
@@ -442,7 +444,7 @@ export function createApp({ document, window, Optimizer = DefaultOptimizer, work
             simulator: { source: state.source, requested: state.requested, accepted: state.accepted,
                 options: state.options, animation: state.animation, markers: state.markers,
                 tracesEnabled: state.tracesEnabled, overlays: state.overlays, reachability: state.reachability,
-                workspaceRanges: workspaceRangesToJSON(state.workspaceRanges), loadModel: state.loadModel, trace: state.trace,
+                workspaceRanges: workspaceRangesToJSON(state.workspaceRanges), loadModel: state.loadModel, cycle: state.cycle, trace: state.trace,
                 camera: simulatorView.getCamera(), pointerMode: document.getElementById('simPointerMode').value,
                 inputFrame: simulatorView.getInputFrame() } }, null, 2);
     }
@@ -467,7 +469,7 @@ export function createApp({ document, window, Optimizer = DefaultOptimizer, work
     }
     function applySimulatorLoad({ parsed, layout, sourceRun, saved }, activate = true) {
         simulatorController.loadLayout(layout, { source: { kind: 'import', candidateId: layout.id ?? null },
-            options: saved.options, workspaceRanges: saved.workspaceRanges, loadModel: saved.loadModel });
+            options: saved.options, workspaceRanges: saved.workspaceRanges, loadModel: saved.loadModel, cycle: saved.cycle });
         // Only after the validating load, so a rejected file never pairs its run
         // metadata with the candidate that stays loaded.
         simulatorRun = sourceRun;
