@@ -3,6 +3,7 @@ import { degToRad } from '../math.js';
 import { DEFAULT_DESIGN_SPACE, DEFAULT_HORN_DIRECTION_MODE, DEFAULT_LEG_PAIRING_MODE, cloneLayout, createRandomLayout, finalizeLayout, mutateLayout,
   crossoverLayouts, validateDesignSpace, validateHornDirectionMode, validateLegPairingMode } from './layout-operators.js';
 import { c3HornDirection, c3LegPairing } from './topology.js';
+import { configurationSummary, retainConfigurations, searchedConfigurations } from './configurations.js';
 import { dominates, fastNonDominatedSort, assignCrowdingDistance, tournamentSelect, selectFromFronts } from './nsga2.js';
 import { evaluateLayout, evaluateCycle, computeFatigue } from './evaluate-layout.js';
 import { estimateWork } from './budget.js';
@@ -128,6 +129,7 @@ export class Optimizer {
     }
     this.hornDirection = validateHornDirectionMode(hornDirection, this.topology);
     this.legPairing = validateLegPairingMode(legPairing, this.topology);
+    this.configurations = searchedConfigurations(this);
     this.ballJointLimitDeg = ballJointLimitDeg ?? requirements.ball_joint_max_deg ?? DEFAULT_BALL_JOINT_LIMIT_DEG;
     this.lowerBallJointLimitDeg = lowerBallJointLimitDeg ?? this.ballJointLimitDeg;
     this.upperBallJointLimitDeg = upperBallJointLimitDeg ?? this.ballJointLimitDeg;
@@ -222,8 +224,14 @@ export class Optimizer {
     this.selectedCandidateId = null;
   }
 
+  // A run that searches several C3 configurations deals its fresh layouts out
+  // in turn, so every configuration starts with an equal share.
   createRandomLayout() {
-    return createRandomLayout({ ...this.layoutOptions(), id: this.nextLayoutId++ });
+    const options = this.layoutOptions();
+    if (this.configurations.length > 1) {
+      Object.assign(options, this.configurations[this.freshLayouts++ % this.configurations.length]);
+    }
+    return createRandomLayout({ ...options, id: this.nextLayoutId++ });
   }
 
   layoutOptions() { return { designSpace: this.designSpace, servoRangeRad: this.servoRangeRad,
@@ -304,7 +312,10 @@ export class Optimizer {
     if (this.referenceEvaluation && !survivors.includes(this.referenceEvaluation)) {
       survivors[survivors.length - 1] = this.referenceEvaluation;
     }
-    return survivors;
+    if (this.configurations.length < 2) return survivors;
+    const ranked = fronts.flatMap(front => front.map(index => evaluations[index])
+      .sort((a, b) => (b.crowding ?? -Infinity) - (a.crowding ?? -Infinity)));
+    return retainConfigurations(survivors, ranked, this.configurations, this.populationSize, this.referenceEvaluation);
   }
 
   updateState(evaluations, fronts) {
@@ -319,6 +330,11 @@ export class Optimizer {
   emitCheckpoint() {
     this.onCheckpoint?.({ generation: this.generation, completedEvaluations: this.completedEvaluations,
       fitness: this.fitness, pareto: this.pareto });
+  }
+
+  // Per-configuration counts for a run that searches several C3 configurations.
+  configurationSummary() {
+    return this.configurations.length > 1 ? configurationSummary(this.fitness, this.configurations) : null;
   }
 
   getSelectedCandidate() {
@@ -407,6 +423,7 @@ export class Optimizer {
     this.completedEvaluations = 0;
     this.completedPoseWork = 0;
     this.nextLayoutId = 1;
+    this.freshLayouts = 0;
     this.random = createRandom(this.seed);
     this.population = initialPopulation(this);
     let evaluations = await this.evaluatePopulation(this.population);
@@ -493,6 +510,7 @@ export class Optimizer {
     return JSON.stringify(exportResult(best, {
       status: this.runStatus, completedGenerations: this.generation, partial: this.runStatus !== 'completed',
       effective_settings: this.effectiveSettings(),
+      ...(this.configurations.length > 1 ? { configuration_summary: this.configurationSummary() } : {}),
     }), null, 2);
   }
 }
